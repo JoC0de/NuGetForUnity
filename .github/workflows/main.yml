@@ -16,6 +16,9 @@ jobs:
       with:
         fetch-depth: 0
         lfs: true
+    
+    - uses: ./.github/actions/create-dll      
+        
     - name: Unity - Builder
       uses: game-ci/unity-builder@v2.1.2
       env:
