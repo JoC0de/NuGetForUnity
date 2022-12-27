@@ -1,0 +1,14 @@
+name: 'Create DLL'
+runs:
+  using: 'docker'
+  image: 'docker://unityci/editor:2018.4.30f1-windows-mono-1'
+  args:
+    - dotnet
+    - build
+    - '".\CreateDLL\"'
+    - /nologo
+    - /m
+    - /p:AppxBundle=Always
+    - /p:Platform='Any CPU'
+    - /p:Configuration=Release
+    - /p:ReferencePath=/opt/unity/editors/2018.4.30f1/Editor/Unity
