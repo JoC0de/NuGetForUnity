@@ -1,0 +1,36 @@
+# This workflow will build a .NET project
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-net
+
+name: .NET
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  buildOnLinux:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+        lfs: true
+    - name: Unity - Builder
+      uses: game-ci/unity-builder@v2.1.2
+      env:
+        UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+        UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+        UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+      with:
+        # Platform that the build should target.
+        targetPlatform: StandaloneWindows64
+        # Version of unity to use for building the project. Use "auto" to get from your ProjectSettings/ProjectVersion.txt
+        unityVersion: auto
+        # Relative path to the project to be built.
+        projectPath: .\Packager
+        # Path to a Namespace.Class.StaticMethod to run to perform the build.
+        buildMethod: NugetForUnity.Export.Execute
