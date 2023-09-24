@@ -1,4 +1,6 @@
-﻿using System;
+#nullable enable
+
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using UnityEditor;
@@ -12,12 +14,7 @@ namespace NugetForUnity.Helper
     {
         private static readonly List<Action> PreInitializedActionQueue = new List<Action>();
 
-        private static SynchronizationContext synchronizationContext;
-
-        static UnityMainThreadDispatcher()
-        {
-            synchronizationContext = SynchronizationContext.Current;
-        }
+        private static SynchronizationContext? synchronizationContext = SynchronizationContext.Current;
 
         /// <summary>
         ///     Add a action to be executed on the Unity Main thread.

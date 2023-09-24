@@ -1,4 +1,6 @@
-﻿using System;
+#nullable enable
+
+using System;
 using System.Diagnostics.CodeAnalysis;
 using UnityEngine;
 
@@ -24,7 +26,7 @@ namespace NugetForUnity.Models
         /// </summary>
         /// <param name="id">The ID of the package.</param>
         /// <param name="version">The version number of the package.</param>
-        public NugetPackageIdentifier(string id, string version)
+        public NugetPackageIdentifier(string id, string? version)
         {
             Id = id;
             PackageVersion = new NugetPackageVersion(version);
@@ -76,7 +78,7 @@ namespace NugetForUnity.Models
         /// <param name="first">The first to compare.</param>
         /// <param name="second">The second to compare.</param>
         /// <returns>True if the first is less than the second.</returns>
-        public static bool operator <(NugetPackageIdentifier first, NugetPackageIdentifier second)
+        public static bool operator <(NugetPackageIdentifier? first, NugetPackageIdentifier? second)
         {
             if (first is null)
             {
@@ -92,7 +94,7 @@ namespace NugetForUnity.Models
         /// <param name="first">The first to compare.</param>
         /// <param name="second">The second to compare.</param>
         /// <returns>True if the first is greater than the second.</returns>
-        public static bool operator >(NugetPackageIdentifier first, NugetPackageIdentifier second)
+        public static bool operator >(NugetPackageIdentifier? first, NugetPackageIdentifier? second)
         {
             if (first is null)
             {
@@ -108,7 +110,7 @@ namespace NugetForUnity.Models
         /// <param name="first">The first to compare.</param>
         /// <param name="second">The second to compare.</param>
         /// <returns>True if the first is less than or equal to the second.</returns>
-        public static bool operator <=(NugetPackageIdentifier first, NugetPackageIdentifier second)
+        public static bool operator <=(NugetPackageIdentifier? first, NugetPackageIdentifier? second)
         {
             if (first is null)
             {
@@ -124,7 +126,7 @@ namespace NugetForUnity.Models
         /// <param name="first">The first to compare.</param>
         /// <param name="second">The second to compare.</param>
         /// <returns>True if the first is greater than or equal to the second.</returns>
-        public static bool operator >=(NugetPackageIdentifier first, NugetPackageIdentifier second)
+        public static bool operator >=(NugetPackageIdentifier? first, NugetPackageIdentifier? second)
         {
             if (first is null)
             {
@@ -141,7 +143,7 @@ namespace NugetForUnity.Models
         /// <param name="first">The first to compare.</param>
         /// <param name="second">The second to compare.</param>
         /// <returns>True if the first is equal to the second.</returns>
-        public static bool operator ==(NugetPackageIdentifier first, NugetPackageIdentifier second)
+        public static bool operator ==(NugetPackageIdentifier? first, NugetPackageIdentifier? second)
         {
             if (ReferenceEquals(first, second))
             {
@@ -163,19 +165,19 @@ namespace NugetForUnity.Models
         /// <param name="first">The first to compare.</param>
         /// <param name="second">The second to compare.</param>
         /// <returns>True if the first is not equal to the second.</returns>
-        public static bool operator !=(NugetPackageIdentifier first, NugetPackageIdentifier second)
+        public static bool operator !=(NugetPackageIdentifier? first, NugetPackageIdentifier? second)
         {
             return !(first == second);
         }
 
         /// <inheritdoc />
-        public int CompareTo(NugetPackageIdentifier other)
+        public int CompareTo(NugetPackageIdentifier? other)
         {
             return CompareTo(other as INugetPackageIdentifier);
         }
 
         /// <inheritdoc />
-        public int CompareTo(INugetPackageIdentifier other)
+        public int CompareTo(INugetPackageIdentifier? other)
         {
             if (other is null)
             {
@@ -208,7 +210,7 @@ namespace NugetForUnity.Models
         /// </summary>
         /// <param name="other">The other <see cref="NugetPackageIdentifier" /> to check equality with.</param>
         /// <returns>True if the package identifiers are equal, otherwise false.</returns>
-        public bool Equals(NugetPackageIdentifier other)
+        public bool Equals(NugetPackageIdentifier? other)
         {
             return Equals(other as INugetPackageIdentifier);
         }
@@ -218,14 +220,14 @@ namespace NugetForUnity.Models
         /// </summary>
         /// <param name="other">The other <see cref="INugetPackageIdentifier" /> to check equality with.</param>
         /// <returns>True if the package identifiers are equal, otherwise false.</returns>
-        public bool Equals(INugetPackageIdentifier other)
+        public bool Equals(INugetPackageIdentifier? other)
         {
             if (ReferenceEquals(this, other))
             {
                 return true;
             }
 
-            return !(other is null) && other.Id.Equals(Id, StringComparison.OrdinalIgnoreCase) && other.PackageVersion.Equals(PackageVersion);
+            return !(other is null) && string.Equals(other.Id, Id, StringComparison.OrdinalIgnoreCase) && other.PackageVersion.Equals(PackageVersion);
         }
 
         /// <summary>
@@ -233,7 +235,7 @@ namespace NugetForUnity.Models
         /// </summary>
         /// <param name="obj">The object to check.</param>
         /// <returns>True if the given object is equal to this <see cref="NugetPackageIdentifier" />, otherwise false.</returns>
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             return Equals(obj as INugetPackageIdentifier);
         }

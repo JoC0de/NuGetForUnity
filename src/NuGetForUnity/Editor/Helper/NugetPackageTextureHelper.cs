@@ -1,4 +1,7 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
@@ -18,12 +21,12 @@ namespace NugetForUnity.Helper
         /// </summary>
         /// <param name="url">The URL of the image to download.</param>
         /// <returns>The image as a Unity Texture2D object.</returns>
-        internal static Task<Texture2D> DownloadImage(string url)
+        internal static Task<Texture2D?> DownloadImage(string url)
         {
             try
             {
                 var fromCache = false;
-                if (url.StartsWith("file://"))
+                if (url.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
                 {
                     // we only cache images coming from a remote server.
                     fromCache = true;
@@ -35,14 +38,14 @@ namespace NugetForUnity.Helper
                 }
 
 #if UNITY_2022_1_OR_NEWER
-                if (UnityEditor.PlayerSettings.insecureHttpOption == UnityEditor.InsecureHttpOption.NotAllowed && url.StartsWith("http://"))
+                if (UnityEditor.PlayerSettings.insecureHttpOption == UnityEditor.InsecureHttpOption.NotAllowed && url.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
                 {
                     // if insecure http url is not allowed try to use https.
-                    url = url.Replace("http://", "https://");
+                    url = url.Replace("http://", "https://", StringComparison.OrdinalIgnoreCase);
                 }
 #endif
 
-                var taskCompletionSource = new TaskCompletionSource<Texture2D>();
+                var taskCompletionSource = new TaskCompletionSource<Texture2D?>();
                 var request = UnityWebRequest.Get(url);
                 {
                     var downloadHandler = new DownloadHandlerTexture(false);
@@ -50,14 +53,18 @@ namespace NugetForUnity.Helper
                     request.downloadHandler = downloadHandler;
                     request.timeout = 1; // 1 second
                     var operation = request.SendWebRequest();
-                    operation.completed += asyncOperation =>
+                    operation.completed += _ =>
                     {
                         try
                         {
                             if (!string.IsNullOrEmpty(request.error))
                             {
 #if UNITY_2020_1_OR_NEWER
-                                NugetLogger.LogVerbose("Downloading image {0} failed! Web error: {1}, Handler error: {2}.", url, request.error, downloadHandler.error);
+                                NugetLogger.LogVerbose(
+                                    "Downloading image {0} failed! Web error: {1}, Handler error: {2}.",
+                                    url,
+                                    request.error,
+                                    downloadHandler.error);
 #else
                                 NugetLogger.LogVerbose("Downloading image {0} failed! Web error: {1}.", url, request.error);
 #endif
@@ -87,7 +94,7 @@ namespace NugetForUnity.Helper
             catch (Exception exception)
             {
                 NugetLogger.LogVerbose("Error while downloading image from: '{0}' got error: {1}", url, exception);
-                return Task.FromResult<Texture2D>(null);
+                return Task.FromResult<Texture2D?>(null);
             }
         }
 
@@ -107,16 +114,19 @@ namespace NugetForUnity.Helper
             return Path.Combine(Application.temporaryCachePath, GetHash(url));
         }
 
+        [SuppressMessage("Design", "CA5351", Justification = "Only use MD5 hash as cache key / not securty relevant.")]
         private static string GetHash(string s)
         {
             if (string.IsNullOrEmpty(s))
             {
-                return null;
+                throw new ArgumentNullException(nameof(s));
             }
 
-            var md5 = new MD5CryptoServiceProvider();
-            var data = md5.ComputeHash(Encoding.Default.GetBytes(s));
-            return Convert.ToBase64String(data).Replace('+', '-').Replace('/', '_').Replace("=", null);
+            using (var md5 = new MD5CryptoServiceProvider())
+            {
+                var data = md5.ComputeHash(Encoding.Default.GetBytes(s));
+                return Convert.ToBase64String(data).Replace('+', '-').Replace('/', '_').Replace("=", null, StringComparison.Ordinal);
+            }
         }
     }
 }

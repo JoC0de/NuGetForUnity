@@ -1,4 +1,6 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -21,7 +23,7 @@ namespace NugetForUnity.Configuration
 
         private const string AutoReferencedAttributeName = "autoReferenced";
 
-        private string contentIsSameAsInFilePath;
+        private string? contentIsSameAsInFilePath;
 
         /// <summary>
         ///     Gets the <see cref="NugetPackageIdentifier" />s contained in the package.config file.
@@ -55,8 +57,12 @@ namespace NugetForUnity.Configuration
             {
                 var package = new PackageConfig
                 {
-                    Id = packageElement.Attribute("id")?.Value,
-                    Version = packageElement.Attribute("version")?.Value,
+                    Id =
+                        packageElement.Attribute("id")?.Value ??
+                        throw new InvalidOperationException($"package element misses 'id' attribute. Element:\n{packageElement}"),
+                    Version =
+                        packageElement.Attribute("version")?.Value ??
+                        throw new InvalidOperationException($"package element misses 'version' attribute. Element:\n{packageElement}"),
                     IsManuallyInstalled =
                         packageElement.Attribute("manuallyInstalled")?.Value.Equals("true", StringComparison.OrdinalIgnoreCase) ?? false,
                     AutoReferenced = (bool)(packageElement.Attributes(AutoReferencedAttributeName).FirstOrDefault() ??
@@ -108,21 +114,6 @@ namespace NugetForUnity.Configuration
             Packages.Sort(
                 (x, y) =>
                 {
-                    if (x.Id == null && y.Id == null)
-                    {
-                        return 0;
-                    }
-
-                    if (x.Id == null)
-                    {
-                        return -1;
-                    }
-
-                    if (y.Id == null)
-                    {
-                        return 1;
-                    }
-
                     if (x.Id == y.Id)
                     {
                         return x.PackageVersion.CompareTo(y.PackageVersion);
@@ -136,7 +127,7 @@ namespace NugetForUnity.Configuration
             foreach (var package in Packages)
             {
                 var packageElement = new XElement("package");
-                packageElement.Add(new XAttribute("id", package.Id));
+                packageElement.Add(new XAttribute("id", package.Id ?? throw new InvalidOperationException("Can't save a package without a Id.")));
                 packageElement.Add(new XAttribute("version", package.Version));
 
                 if (package.IsManuallyInstalled)
@@ -231,7 +222,7 @@ namespace NugetForUnity.Configuration
         internal void SetManuallyInstalledFlag(INugetPackageIdentifier package)
         {
             package.IsManuallyInstalled = true;
-            var packageConfig = Packages.Find(p => p.Id.Equals(package.Id, StringComparison.OrdinalIgnoreCase));
+            var packageConfig = Packages.Find(p => string.Equals(p.Id, package.Id, StringComparison.OrdinalIgnoreCase));
             if (packageConfig != null && !packageConfig.IsManuallyInstalled)
             {
                 packageConfig.IsManuallyInstalled = true;
@@ -245,7 +236,7 @@ namespace NugetForUnity.Configuration
         /// <param name="package">The NugetPackage to add to the packages.config file.</param>
         private void AddPackage(PackageConfig package)
         {
-            var existingPackage = Packages.Find(p => p.Id.Equals(package.Id, StringComparison.OrdinalIgnoreCase));
+            var existingPackage = Packages.Find(p => string.Equals(p.Id, package.Id, StringComparison.OrdinalIgnoreCase));
             if (existingPackage != null)
             {
                 var compared = existingPackage.CompareTo(package);

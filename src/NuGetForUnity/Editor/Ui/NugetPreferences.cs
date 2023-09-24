@@ -1,4 +1,6 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿#nullable enable
+
+using System.Diagnostics.CodeAnalysis;
 using NugetForUnity.Configuration;
 using NugetForUnity.Helper;
 using NugetForUnity.PackageSource;
@@ -135,9 +137,9 @@ namespace NugetForUnity.Ui
 
             scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition);
 
-            INugetPackageSource sourceToMoveUp = null;
-            INugetPackageSource sourceToMoveDown = null;
-            INugetPackageSource sourceToRemove = null;
+            INugetPackageSource? sourceToMoveUp = null;
+            INugetPackageSource? sourceToMoveDown = null;
+            INugetPackageSource? sourceToRemove = null;
 
             foreach (var source in ConfigurationManager.NugetConfigFile.PackageSources)
             {

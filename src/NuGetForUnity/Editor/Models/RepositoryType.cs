@@ -1,4 +1,6 @@
-﻿namespace NugetForUnity.Models
+#nullable enable
+
+namespace NugetForUnity.Models
 {
     /// <summary>
     ///     The type of repository that a package is from.

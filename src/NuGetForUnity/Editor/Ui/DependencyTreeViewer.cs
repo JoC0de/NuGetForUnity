@@ -1,4 +1,6 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using NugetForUnity.Configuration;
@@ -192,7 +194,7 @@ namespace NugetForUnity.Ui
 
         private void DrawPackage(INugetPackage package)
         {
-            if (package.Dependencies != null && package.Dependencies.Count > 0)
+            if (package.Dependencies.Count > 0)
             {
                 expanded[package] = EditorGUILayout.Foldout(expanded[package], $"{package.Id} {package.Version}");
 

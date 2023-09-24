@@ -1,4 +1,6 @@
-﻿using System;
+#nullable enable
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -50,7 +52,7 @@ namespace NugetForUnity.PackageSource
         }
 
         /// <inheritdoc />
-        public string SavedPassword
+        public string? SavedPassword
         {
             get => null;
 
@@ -61,7 +63,7 @@ namespace NugetForUnity.PackageSource
         }
 
         /// <inheritdoc />
-        public string UserName
+        public string? UserName
         {
             get => null;
 
@@ -101,7 +103,7 @@ namespace NugetForUnity.PackageSource
         }
 
         /// <inheritdoc />
-        public INugetPackage GetSpecificPackage(INugetPackageIdentifier package)
+        public INugetPackage? GetSpecificPackage(INugetPackageIdentifier package)
         {
             var activeSourcesCount = packageSources.Count(source => source.IsEnabled);
             if (activeSourcesCount == 0)
@@ -116,7 +118,7 @@ namespace NugetForUnity.PackageSource
             }
 
             // Loop through all active sources and stop once the package is found
-            INugetPackage bestMatch = null;
+            INugetPackage? bestMatch = null;
             foreach (var source in packageSources.Where(s => s.IsEnabled))
             {
                 var foundPackage = source.GetSpecificPackage(package);
@@ -204,7 +206,7 @@ namespace NugetForUnity.PackageSource
         }
 
         /// <inheritdoc />
-        public void DownloadNupkgToFile(INugetPackageIdentifier package, string outputFilePath, string downloadUrlHint)
+        public void DownloadNupkgToFile(INugetPackageIdentifier package, string outputFilePath, string? downloadUrlHint)
         {
             throw new NotImplementedException(
                 "This shouldn't happen / is currently not implemented as each package has its own 'DownloadNupkgToFile' method.");

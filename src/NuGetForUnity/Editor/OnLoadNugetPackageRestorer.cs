@@ -1,4 +1,6 @@
-﻿using NugetForUnity.Configuration;
+#nullable enable
+
+using NugetForUnity.Configuration;
 using UnityEditor;
 
 namespace NugetForUnity

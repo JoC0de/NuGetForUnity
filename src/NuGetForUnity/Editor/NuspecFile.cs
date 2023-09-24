@@ -1,5 +1,8 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -31,59 +34,63 @@ namespace NugetForUnity
         /// <summary>
         ///     Gets or sets the source control branch the package is from.
         /// </summary>
-        public string RepositoryBranch { get; set; }
+        public string? RepositoryBranch { get; set; }
 
         /// <summary>
         ///     Gets or sets the source control commit the package is from.
         /// </summary>
-        public string RepositoryCommit { get; set; }
+        public string? RepositoryCommit { get; set; }
 
         /// <summary>
         ///     Gets or sets the type of source control software that the package's source code resides in.
         /// </summary>
-        public string RepositoryType { get; set; }
+        public string? RepositoryType { get; set; }
 
         /// <summary>
         ///     Gets or sets the url for the location of the package's source code.
         /// </summary>
-        public string RepositoryUrl { get; set; }
+        [SuppressMessage("Design", "CA1056:URI-like properties should not be strings", Justification = "Its just a config not necessary a URL.")]
+        public string? RepositoryUrl { get; set; }
 
         /// <summary>
         ///     Gets or sets the title of the NuGet package.
         /// </summary>
-        public string Title { get; set; }
+        public string? Title { get; set; }
 
         /// <summary>
         ///     Gets or sets the owners of the NuGet package.
         /// </summary>
-        public string Owners { get; set; }
+        public string? Owners { get; set; }
 
         /// <summary>
         ///     Gets or sets the URL for the location of the license of the NuGet package.
         /// </summary>
-        public string LicenseUrl { get; set; }
+        [SuppressMessage("Design", "CA1056:URI-like properties should not be strings", Justification = "Its just a config not necessary a URL.")]
+        public string? LicenseUrl { get; set; }
 
         /// <summary>
         ///     Gets or sets the URL for the location of the project web-page of the NuGet package.
         /// </summary>
-        public string ProjectUrl { get; set; }
+        [SuppressMessage("Design", "CA1056:URI-like properties should not be strings", Justification = "Its just a config not necessary a URL.")]
+        public string? ProjectUrl { get; set; }
 
         /// <summary>
         ///     Gets or sets the URL for the location of the icon of the NuGet package.
         /// </summary>
-        public string IconUrl { get; set; }
+        [SuppressMessage("Design", "CA1056:URI-like properties should not be strings", Justification = "Its just a config not necessary a URL.")]
+        public string? IconUrl { get; set; }
 
         /// <summary>
         ///     Gets the path to a icon file. The path is relative to the root folder of the package. This is a alternative to using a URL <see cref="IconUrl" />
         ///     .
         /// </summary>
-        public string Icon { get; private set; }
+        public string? Icon { get; private set; }
 
         /// <summary>
         ///     Gets the full path to a icon file. This is only set if the .nuspec file contains a <see cref="Icon" />. This is a alternative to using a URL
         ///     <see cref="IconUrl" />.
         /// </summary>
-        public string IconFilePath { get; private set; }
+        public string? IconFilePath { get; private set; }
 
         /// <summary>
         ///     Gets or sets a value indicating whether the license of the NuGet package needs to be accepted in order to use it.
@@ -91,44 +98,44 @@ namespace NugetForUnity
         public bool RequireLicenseAcceptance { get; set; }
 
         /// <summary>
-        ///     Gets or sets the NuGet packages that this NuGet package depends on.
+        ///     Gets the NuGet packages that this NuGet package depends on.
         /// </summary>
-        public List<NugetFrameworkGroup> Dependencies { get; set; }
+        public List<NugetFrameworkGroup> Dependencies { get; }
 
         /// <summary>
         ///     Gets or sets the release notes of the NuGet package.
         /// </summary>
-        public string ReleaseNotes { get; set; }
+        public string? ReleaseNotes { get; set; }
 
         /// <summary>
         ///     Gets or sets the copyright of the NuGet package.
         /// </summary>
-        public string Copyright { get; set; }
+        public string? Copyright { get; set; }
 
         /// <summary>
         ///     Gets or sets the tags of the NuGet package.
         /// </summary>
-        public string Tags { get; set; }
+        public string? Tags { get; set; }
 
         /// <summary>
-        ///     Gets or sets the list of content files listed in the .nuspec file.
+        ///     Gets the list of content files listed in the .nuspec file.
         /// </summary>
-        public List<NuspecContentFile> Files { get; set; }
-
-        /// <summary>
-        ///     Gets or sets the description of the NuGet package.
-        /// </summary>
-        public string Description { get; set; }
+        public List<NuspecContentFile> Files { get; }
 
         /// <summary>
         ///     Gets or sets the description of the NuGet package.
         /// </summary>
-        public string Summary { get; set; }
+        public string? Description { get; set; }
+
+        /// <summary>
+        ///     Gets or sets the description of the NuGet package.
+        /// </summary>
+        public string? Summary { get; set; }
 
         /// <summary>
         ///     Gets or sets the authors of the NuGet package.
         /// </summary>
-        public string Authors { get; set; }
+        public string Authors { get; set; } = string.Empty;
 
         /// <summary>
         ///     Loads the .nuspec file inside the .nupkg file at the given file path.
@@ -144,7 +151,7 @@ namespace NugetForUnity
                 // get the .nuspec file from inside the .nupkg
                 using (var zip = ZipFile.OpenRead(nupkgFilePath))
                 {
-                    var entry = zip.Entries.First(x => x.FullName.EndsWith(".nuspec"));
+                    var entry = zip.Entries.First(x => x.FullName.EndsWith(".nuspec", StringComparison.OrdinalIgnoreCase));
 
                     using (var stream = entry.Open())
                     {
@@ -178,9 +185,11 @@ namespace NugetForUnity
         /// <returns>The newly loaded <see cref="NuspecFile" />.</returns>
         public static NuspecFile Load(Stream stream)
         {
-            XmlReader reader = new XmlTextReader(stream);
-            var document = XDocument.Load(reader);
-            return Load(document);
+            using (var reader = XmlReader.Create(stream, new XmlReaderSettings { XmlResolver = null }))
+            {
+                var document = XDocument.Load(reader);
+                return Load(document);
+            }
         }
 
         /// <summary>
@@ -288,7 +297,7 @@ namespace NugetForUnity
         /// </remarks>
         /// <param name="baseDirectoryPath">Path to the local repository's root directory.</param>
         /// <returns>The full path to the file, if it exists in the repository, or <c>null</c> otherwise.</returns>
-        public string GetLocalPackageFilePath(string baseDirectoryPath)
+        public string? GetLocalPackageFilePath(string baseDirectoryPath)
         {
             // Find this package's file in the repository.
             var files = Directory.GetFiles(baseDirectoryPath, PackageFileName, SearchOption.AllDirectories);
@@ -382,7 +391,7 @@ namespace NugetForUnity
                 metadata.Add(dependenciesElement);
             }
 
-            file.Root.Add(metadata);
+            file.Root!.Add(metadata);
 
             if (Files.Count > 0)
             {
@@ -413,12 +422,16 @@ namespace NugetForUnity
             file.Save(filePath);
         }
 
+        [SuppressMessage("Globalization", "CA1308:Normalize strings to uppercase", Justification = "We intentionally use lower case.")]
         private static string ConvertFromNupkgTargetFrameworkName(string targetFramework)
         {
-            var convertedTargetFramework = targetFramework.ToLower().Replace(".netstandard", "netstandard").Replace("native0.0", "native");
+            var convertedTargetFramework = targetFramework.ToLowerInvariant()
+                .Replace(".netstandard", "netstandard", StringComparison.Ordinal)
+                .Replace("native0.0", "native", StringComparison.Ordinal);
 
-            convertedTargetFramework = convertedTargetFramework.StartsWith(".netframework") ?
-                convertedTargetFramework.Replace(".netframework", "net").Replace(".", string.Empty) :
+            convertedTargetFramework = convertedTargetFramework.StartsWith(".netframework", StringComparison.Ordinal) ?
+                convertedTargetFramework.Replace(".netframework", "net", StringComparison.Ordinal)
+                    .Replace(".", string.Empty, StringComparison.Ordinal) :
                 convertedTargetFramework;
 
             return convertedTargetFramework;
@@ -431,7 +444,7 @@ namespace NugetForUnity
                 IconFilePath = Path.Combine(
                     Path.GetDirectoryName(Path.GetFullPath(containingFilePath)) ??
                     throw new ArgumentException($"Path doesn't contain a directory name '{containingFilePath}'.", nameof(containingFilePath)),
-                    Icon);
+                    Icon!);
             }
 
             return this;

@@ -1,4 +1,6 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
 using System.IO;
 using System.Net;
 using System.Text;
@@ -20,11 +22,11 @@ namespace NugetForUnity.Helper
         /// <param name="password">Password that will be passed in the Authorization header or the request. If null, authorization is omitted.</param>
         /// <param name="timeOut">Timeout in milliseconds or null to use the default timeout values of HttpWebRequest.</param>
         /// <returns>Stream containing the result.</returns>
-        internal static Stream RequestUrl(string url, string userName, string password, int? timeOut)
+        internal static Stream RequestUrl(string url, string? userName, string? password, int? timeOut)
         {
             // Mono doesn't have a Certificate Authority, so we have to provide all validation manually. Currently just accept anything.
             // See here: http://stackoverflow.com/questions/4926676/mono-webrequest-fails-with-https
-            ServicePointManager.ServerCertificateValidationCallback = (sender, certificate, chain, policyErrors) => true;
+            ServicePointManager.ServerCertificateValidationCallback = (_, _, _, _) => true;
             try
             {
 #pragma warning disable SYSLIB0014 // Type or member is obsolete
@@ -53,7 +55,7 @@ namespace NugetForUnity.Helper
 
                 NugetLogger.LogVerbose("HTTP GET {0}", url);
                 var objStream = getRequest.GetResponse().GetResponseStream();
-                return objStream;
+                return objStream ?? throw new InvalidOperationException("Response stream is null.");
             }
             catch (WebException webException)
             {
@@ -70,7 +72,7 @@ namespace NugetForUnity.Helper
         {
             if (webException.Response is HttpWebResponse webResponse &&
                 webResponse.StatusCode == HttpStatusCode.BadRequest &&
-                webException.Message.Contains("Authentication information is not given in the correct format"))
+                webException.Message.Contains("Authentication information is not given in the correct format", StringComparison.OrdinalIgnoreCase))
             {
                 // This error occurs when downloading a package with authentication using .NET 3.5, but seems to be fixed by the new .NET 4.6 runtime.
                 // Inform users when this occurs.

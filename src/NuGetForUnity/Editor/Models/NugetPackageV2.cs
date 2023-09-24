@@ -1,4 +1,6 @@
-﻿using System;
+#nullable enable
+
+using System;
 using System.Collections.Generic;
 using NugetForUnity.PackageSource;
 using UnityEngine;
@@ -27,7 +29,7 @@ namespace NugetForUnity.Models
         public override INugetPackageSource PackageSource => packageSourceV2;
 
         /// <inheritdoc />
-        public override List<NugetPackageVersion> Versions => null;
+        public override List<NugetPackageVersion> Versions => new List<NugetPackageVersion> { PackageVersion };
 
         /// <summary>
         ///     Creates a new <see cref="NugetPackageLocal" /> from the given <see cref="NuspecFile" />.

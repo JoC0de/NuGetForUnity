@@ -1,4 +1,6 @@
-﻿namespace NugetForUnity
+#nullable enable
+
+namespace NugetForUnity
 {
     /// <summary>
     ///     Represents a file entry inside a .nuspec file.

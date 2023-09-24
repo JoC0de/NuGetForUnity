@@ -1,4 +1,6 @@
-﻿using System;
+#nullable enable
+
+using System;
 using UnityEngine;
 
 namespace NugetForUnity.Models
@@ -11,22 +13,22 @@ namespace NugetForUnity.Models
     internal sealed class SerializableNugetPackage
     {
         [SerializeField]
-        private NugetPackageLocal packageLocal;
+        private NugetPackageLocal? packageLocal;
 
         [SerializeField]
         private PackageType packageType;
 
         [SerializeField]
-        private NugetPackageV2 packageV2;
+        private NugetPackageV2? packageV2;
 
         [SerializeField]
-        private NugetPackageV3 packageV3;
+        private NugetPackageV3? packageV3;
 
         /// <summary>
         ///     Initializes a new instance of the <see cref="SerializableNugetPackage" /> class.
         /// </summary>
         /// <param name="packageInterface">The package.</param>
-        public SerializableNugetPackage(INugetPackage packageInterface)
+        public SerializableNugetPackage(INugetPackage? packageInterface)
         {
             var type = packageInterface?.GetType() ?? throw new ArgumentNullException(nameof(packageInterface));
             if (type == typeof(NugetPackageLocal))
@@ -60,11 +62,11 @@ namespace NugetForUnity.Models
                 switch (packageType)
                 {
                     case PackageType.Local:
-                        return packageLocal;
+                        return packageLocal!;
                     case PackageType.V2:
-                        return packageV2;
+                        return packageV2!;
                     case PackageType.V3:
-                        return packageV3;
+                        return packageV3!;
                     default:
                         throw new InvalidOperationException($"Package has type: {packageType} with is currently not handled.");
                 }

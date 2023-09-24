@@ -1,5 +1,8 @@
-﻿using System;
+#nullable enable
+
+using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Xml.Linq;
 using NugetForUnity.Models;
@@ -50,7 +53,8 @@ namespace NugetForUnity.PackageSource
                     Id = entry.GetAtomElement("title").Value, DownloadUrl = entry.GetAtomElement("content").Attribute("src")?.Value,
                 };
 
-                var entryProperties = entry.Element(XName.Get("properties", MetaDataNamespace));
+                var entryProperties = entry.Element(XName.Get("properties", MetaDataNamespace)) ??
+                                      throw new InvalidOperationException("Missing 'properties' element.");
                 package.Title = entryProperties.GetProperty("Title");
                 package.Version = entryProperties.GetProperty("Version");
                 package.Description = entryProperties.GetProperty("Description");
@@ -59,7 +63,7 @@ namespace NugetForUnity.PackageSource
                 package.LicenseUrl = entryProperties.GetProperty("LicenseUrl");
                 package.ProjectUrl = entryProperties.GetProperty("ProjectUrl");
                 package.Authors = entryProperties.GetProperty("Authors").Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).ToList();
-                package.TotalDownloads = long.Parse(entryProperties.GetProperty("DownloadCount"));
+                package.TotalDownloads = long.Parse(entryProperties.GetProperty("DownloadCount"), CultureInfo.InvariantCulture);
                 package.IconUrl = entryProperties.GetProperty("IconUrl");
 
                 // if there is no title, just use the ID as the title
@@ -133,7 +137,8 @@ namespace NugetForUnity.PackageSource
         /// <returns>The Atom element.</returns>
         private static XElement GetAtomElement(this XElement element, string name)
         {
-            return element.Element(XName.Get(name, AtomNamespace));
+            return element.Element(XName.Get(name, AtomNamespace)) ??
+                   throw new InvalidOperationException($"Can't find element with name {name} inside:\n{element}");
         }
     }
 }

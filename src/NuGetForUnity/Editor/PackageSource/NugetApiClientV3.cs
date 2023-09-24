@@ -1,4 +1,6 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
@@ -31,14 +33,14 @@ namespace NugetForUnity.PackageSource
 
         // Example: https://api.nuget.org/v3-flatcontainer/
         [SerializeField]
-        private string packageBaseAddress;
+        private string? packageBaseAddress;
 
         // Example: https://api.nuget.org/v3/registration5-gz-semver2/
         [SerializeField]
-        private string registrationsBaseUrl;
+        private string? registrationsBaseUrl;
 
         [SerializeField]
-        private List<string> searchQueryServices;
+        private List<string>? searchQueryServices;
 
         /// <summary>
         ///     Initializes a new instance of the <see cref="NugetApiClientV3" /> class.
@@ -142,7 +144,9 @@ namespace NugetForUnity.PackageSource
             {
                 var responseString = await GetStringFromServerAsync(packageSource, queryService + query, cancellationToken).ConfigureAwait(false);
                 var searchResult = JsonUtility.FromJson<SearchResult>(responseString);
-                return SearchResultToNugetPackages(searchResult.data, packageSource);
+                var reulsts = searchResult.data ??
+                              throw new InvalidOperationException($"missing 'data' property in search response:\n{responseString}");
+                return SearchResultToNugetPackages(reulsts, packageSource);
             }
 
             Debug.LogError($"There are no {nameof(searchQueryServices)} specified in the API '{apiIndexJsonUrl}' so we can't search.");
@@ -156,6 +160,7 @@ namespace NugetForUnity.PackageSource
         /// <param name="package">The package to download its .nupkg from.</param>
         /// <param name="outputFilePath">Path where the downloaded file is placed.</param>
         /// <returns>The async task.</returns>
+        [SuppressMessage("Globalization", "CA1308:Normalize strings to uppercase", Justification = "We intentionally use lower case.")]
         public async Task DownloadNupkgToFile(NugetPackageSourceV3 packageSource, INugetPackageIdentifier package, string outputFilePath)
         {
             var version = package.Version.ToLowerInvariant();
@@ -188,6 +193,7 @@ namespace NugetForUnity.PackageSource
         /// <returns>
         ///     The package details or null if the package is not found.
         /// </returns>
+        [SuppressMessage("Globalization", "CA1308:Normalize strings to uppercase", Justification = "API uses lower case.")]
         public async Task<List<NugetFrameworkGroup>> GetPackageDetails(
             NugetPackageSourceV3 packageSource,
             INugetPackageIdentifier package,
@@ -197,7 +203,7 @@ namespace NugetForUnity.PackageSource
             {
                 Debug.LogError(
                     $"There are no {nameof(registrationsBaseUrl)} specified in the API '{apiIndexJsonUrl}' so we can't receive package details.");
-                return null;
+                return new List<NugetFrameworkGroup>();
             }
 
             var responseString = await GetStringFromServerAsync(
@@ -205,46 +211,124 @@ namespace NugetForUnity.PackageSource
                     $"{registrationsBaseUrl}{package.Id.ToLowerInvariant()}/index.json",
                     cancellationToken)
                 .ConfigureAwait(false);
-            var registrationResponse = JsonUtility.FromJson<RegistrationResponse>(responseString.Replace(@"""@id"":", @"""atId"":"));
+            var registrationResponse =
+                JsonUtility.FromJson<RegistrationResponse>(responseString.Replace(@"""@id"":", @"""atId"":", StringComparison.Ordinal));
 
             // without a version specified, the latest version is returned
             var getLatestVersion = string.IsNullOrEmpty(package.Version);
+            var registrationItems = registrationResponse.items ??
+                                    throw new InvalidOperationException(
+                                        $"missing 'items' property inside registration request for package: {package.Id}, response:\n{responseString}");
             var item = getLatestVersion ?
-                registrationResponse.items.OrderByDescending(registrationItem => new NugetPackageVersion(registrationItem.lower)).First() :
-                registrationResponse.items.Find(
+                registrationItems.OrderByDescending(registrationItem => new NugetPackageVersion(registrationItem.lower)).First() :
+                registrationItems.Find(
                     registrationItem => package.PackageVersion.CompareTo(new NugetPackageVersion(registrationItem.lower)) >= 0 &&
                                         package.PackageVersion.CompareTo(new NugetPackageVersion(registrationItem.upper)) <= 0);
             if (item is null)
             {
                 Debug.LogError($"There is no package with id '{package.Id}' and version '{package.Version}' on the registration page.");
-                return null;
+                return new List<NugetFrameworkGroup>();
             }
 
             if (item.items is null || item.items.Count == 0)
             {
                 // If the items property is not present in the registration page object, the URL specified in the @id must be used to fetch metadata about individual package versions. The items array is sometimes excluded from the page object as an optimization. If the number of versions of a single package ID is very large, then the registration index document will be massive and wasteful to process for a client that only cares about a specific version or small range of versions.
-                var registrationPageString = await GetStringFromServerAsync(packageSource, item.atId, cancellationToken).ConfigureAwait(false);
+                var itemAtId = item.atId ?? throw new InvalidOperationException($"missing '@id' for item inside response:\n{responseString}");
+                var registrationPageString = await GetStringFromServerAsync(packageSource, itemAtId, cancellationToken).ConfigureAwait(false);
                 var registrationPage = JsonUtility.FromJson<RegistrationPageObject>(registrationPageString);
-                item.items = registrationPage.items;
+                item.items = registrationPage.items ??
+                             throw new InvalidOperationException(
+                                 $"missing 'items' property inside page request for URL: {itemAtId}, response:\n{registrationPageString}");
             }
 
             var leafItem = getLatestVersion ?
-                item.items.OrderByDescending(registrationLeaf => new NugetPackageVersion(registrationLeaf.catalogEntry.version)).FirstOrDefault() :
-                item.items.Find(leaf => new NugetPackageVersion(leaf.catalogEntry.version) == package.PackageVersion);
+                item.items.OrderByDescending(registrationLeaf => new NugetPackageVersion(registrationLeaf.CatalogEntry.version)).FirstOrDefault() :
+                item.items.Find(leaf => new NugetPackageVersion(leaf.CatalogEntry.version) == package.PackageVersion);
             if (leafItem is null)
             {
                 Debug.LogError(
                     $"There is no package with id '{package.Id}' and version '{package.PackageVersion}' in the registration page with the matching version rage: {item.lower} to {item.upper} '{item.atId}'.");
-                return null;
+                return new List<NugetFrameworkGroup>();
             }
 
-            return leafItem.catalogEntry.dependencyGroups.ConvertAll(
-                dependencyGroup => new NugetFrameworkGroup
+            var dependencyGroups = leafItem.CatalogEntry.dependencyGroups ??
+                                   throw new InvalidOperationException(
+                                       $"missing '{nameof(leafItem.catalogEntry)}.{nameof(CatalogEntry.dependencyGroups)}' property for item: '{item.atId}'");
+            return dependencyGroups.ConvertAll(
+                dependencyGroup =>
                 {
-                    Dependencies =
-                        dependencyGroup.dependencies.ConvertAll(dependency => new NugetPackageIdentifier(dependency.id, dependency.range)),
-                    TargetFramework = dependencyGroup.targetFramework,
+                    if (dependencyGroup.dependencies is null)
+                    {
+                        throw new InvalidOperationException(
+                            $"missing '{nameof(dependencyGroup.dependencies)}' property for dependency group: '{dependencyGroup.targetFramework}'");
+                    }
+
+                    return new NugetFrameworkGroup
+                    {
+                        Dependencies = dependencyGroup.dependencies.ConvertAll(
+                            dependency => new NugetPackageIdentifier(
+                                dependency.id ??
+                                throw new InvalidOperationException(
+                                    $"missing '{nameof(dependency.id)}' inside '{nameof(dependencyGroup.dependencies)}' for dependency group: '{dependencyGroup.targetFramework}'"),
+                                dependency.range)),
+                        TargetFramework = dependencyGroup.targetFramework,
+                    };
                 });
+        }
+
+        private static List<INugetPackage> SearchResultToNugetPackages(List<SearchResultItem> searchResults, NugetPackageSourceV3 packageSource)
+        {
+            var packages = new List<INugetPackage>(searchResults.Count);
+            foreach (var item in searchResults)
+            {
+                if (item.versions is null)
+                {
+                    throw new InvalidOperationException(
+                        $"missing '{nameof(item.versions)}' property in search result item:\n{JsonUtility.ToJson(item)}");
+                }
+
+                if (item.id is null)
+                {
+                    throw new InvalidOperationException($"missing '{nameof(item.id)}' property in search result item:\n{JsonUtility.ToJson(item)}");
+                }
+
+                if (item.version is null)
+                {
+                    throw new InvalidOperationException(
+                        $"missing '{nameof(item.version)}' property in search result item:\n{JsonUtility.ToJson(item)}");
+                }
+
+                var versions = item.versions.ConvertAll(searchVersion => new NugetPackageVersion(searchVersion.version));
+                versions.Sort();
+                packages.Add(
+                    new NugetPackageV3(
+                        item.id,
+                        item.version,
+                        item.authors ?? new List<string>(),
+                        item.description,
+                        item.totalDownloads,
+                        item.licenseUrl,
+                        packageSource,
+                        item.projectUrl,
+                        item.summary,
+                        item.title,
+                        item.iconUrl,
+                        versions));
+            }
+
+            return packages;
+        }
+
+        private static async Task EnsureResponseIsSuccess(HttpResponseMessage response)
+        {
+            if (response.IsSuccessStatusCode)
+            {
+                return;
+            }
+
+            var responseString = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            throw new HttpRequestException(
+                $"The request to '{response.RequestMessage.RequestUri}' failed with status code '{response.StatusCode}' and message: {responseString}");
         }
 
         private bool InitializeFromSessionState()
@@ -275,29 +359,36 @@ namespace NugetForUnity.PackageSource
             {
                 var responseString = await GetStringFromServerAsync(packageSource, apiIndexJsonUrl.AbsoluteUri, CancellationToken.None)
                     .ConfigureAwait(false);
-                var resourceList =
-                    JsonUtility.FromJson<IndexResponse>(responseString.Replace(@"""@id"":", @"""atId"":").Replace(@"""@type"":", @"""atType"":"));
+                var resourceList = JsonUtility.FromJson<IndexResponse>(
+                    responseString.Replace(@"""@id"":", @"""atId"":", StringComparison.Ordinal)
+                        .Replace(@"""@type"":", @"""atType"":", StringComparison.Ordinal));
                 var foundSearchQueryServices = new List<string>();
-                foreach (var resource in resourceList.resources)
+                var resources = resourceList.resources ??
+                                throw new InvalidOperationException(
+                                    $"missing '{nameof(resourceList.resources)}' property inside index response:\n{responseString}");
+                foreach (var resource in resources)
                 {
+                    var resourceAtId = resource.atId ??
+                                       throw new InvalidOperationException($"missing '@id' property inside resource of type '{resource.atType}'");
                     switch (resource.atType)
                     {
                         case "SearchQueryService":
-                            if (resource.comment.Contains("(primary)"))
+                            var comment = resource.comment ?? string.Empty;
+                            if (comment.Contains("(primary)", StringComparison.OrdinalIgnoreCase))
                             {
-                                foundSearchQueryServices.Insert(0, resource.atId.Trim('/'));
+                                foundSearchQueryServices.Insert(0, resourceAtId.Trim('/'));
                             }
                             else
                             {
-                                foundSearchQueryServices.Add(resource.atId.Trim('/'));
+                                foundSearchQueryServices.Add(resourceAtId.Trim('/'));
                             }
 
                             break;
                         case "PackageBaseAddress/3.0.0":
-                            packageBaseAddress = resource.atId.Trim('/') + '/';
+                            packageBaseAddress = resourceAtId.Trim('/') + '/';
                             break;
                         case "RegistrationsBaseUrl/3.6.0":
-                            registrationsBaseUrl = resource.atId.Trim('/') + '/';
+                            registrationsBaseUrl = resourceAtId.Trim('/') + '/';
                             break;
                     }
                 }
@@ -357,44 +448,6 @@ namespace NugetForUnity.PackageSource
             }
         }
 
-        private List<INugetPackage> SearchResultToNugetPackages(List<SearchResultItem> searchResults, NugetPackageSourceV3 packageSource)
-        {
-            var packages = new List<INugetPackage>(searchResults.Count);
-            foreach (var item in searchResults)
-            {
-                var versions = item.versions.ConvertAll(searchVersion => new NugetPackageVersion(searchVersion.version));
-                versions.Sort();
-                packages.Add(
-                    new NugetPackageV3(
-                        item.id,
-                        item.version,
-                        item.authors,
-                        item.description,
-                        item.totalDownloads,
-                        item.licenseUrl,
-                        packageSource,
-                        item.projectUrl,
-                        item.summary,
-                        item.title,
-                        item.iconUrl,
-                        versions));
-            }
-
-            return packages;
-        }
-
-        private async Task EnsureResponseIsSuccess(HttpResponseMessage response)
-        {
-            if (response.IsSuccessStatusCode)
-            {
-                return;
-            }
-
-            var responseString = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-            throw new HttpRequestException(
-                $"The request to '{response.RequestMessage.RequestUri}' failed with status code '{response.StatusCode}' and message: {responseString}");
-        }
-
         private class QueryBuilder
         {
             private readonly StringBuilder builder = new StringBuilder();
@@ -423,52 +476,31 @@ namespace NugetForUnity.PackageSource
         // ReSharper disable UnusedMember.Local
         // ReSharper disable NotAccessedField.Local
 #pragma warning disable CS0649 // Field is assigned on serialize
+#pragma warning disable CA1051 // Do not declare visible instance fields
+#pragma warning disable SA1307 // Accessible fields should begin with upper-case letter
+#pragma warning disable SA1401 // Fields should be private
 
         [Serializable]
-        [SuppressMessage(
-            "StyleCop.CSharp.NamingRules",
-            "SA1307:Accessible fields should begin with upper-case letter",
-            Justification = "The names need to match with the JSON parameter.")]
-        [SuppressMessage(
-            "StyleCop.CSharp.MaintainabilityRules",
-            "SA1401:Fields should be private",
-            Justification = "Need to be serializable with the correct name.")]
         private class IndexResponse
         {
-            public List<Resource> resources;
+            public List<Resource>? resources;
 
-            public string version;
+            public string? version;
         }
 
         [Serializable]
-        [SuppressMessage(
-            "StyleCop.CSharp.NamingRules",
-            "SA1307:Accessible fields should begin with upper-case letter",
-            Justification = "The names need to match with the JSON parameter.")]
-        [SuppressMessage(
-            "StyleCop.CSharp.MaintainabilityRules",
-            "SA1401:Fields should be private",
-            Justification = "Need to be serializable with the correct name.")]
         private class Resource
         {
-            public string atId;
+            public string? atId;
 
-            public string atType;
+            public string? atType;
 
-            public string clientVersion;
+            public string? clientVersion;
 
-            public string comment;
+            public string? comment;
         }
 
         [Serializable]
-        [SuppressMessage(
-            "StyleCop.CSharp.NamingRules",
-            "SA1307:Accessible fields should begin with upper-case letter",
-            Justification = "The names need to match with the JSON parameter.")]
-        [SuppressMessage(
-            "StyleCop.CSharp.MaintainabilityRules",
-            "SA1401:Fields should be private",
-            Justification = "Need to be serializable with the correct name.")]
         private class RegistrationResponse
         {
             /// <summary>
@@ -479,18 +511,10 @@ namespace NugetForUnity.PackageSource
             /// <summary>
             ///     The array of registration pages.
             /// </summary>
-            public List<RegistrationPageObject> items;
+            public List<RegistrationPageObject>? items;
         }
 
         [Serializable]
-        [SuppressMessage(
-            "StyleCop.CSharp.NamingRules",
-            "SA1307:Accessible fields should begin with upper-case letter",
-            Justification = "The names need to match with the JSON parameter.")]
-        [SuppressMessage(
-            "StyleCop.CSharp.MaintainabilityRules",
-            "SA1401:Fields should be private",
-            Justification = "Need to be serializable with the correct name.")]
         private class RegistrationPageObject
         {
             /// <summary>
@@ -498,7 +522,7 @@ namespace NugetForUnity.PackageSource
             ///     If the items property is not present in the registration page object, the URL specified in the @id must be used to fetch metadata about
             ///     individual package versions.
             /// </summary>
-            public string atId;
+            public string? atId;
 
             /// <summary>
             ///     The number of registration leaves in the page.
@@ -508,139 +532,118 @@ namespace NugetForUnity.PackageSource
             /// <summary>
             ///     The array of registration leaves and their associate metadata.
             /// </summary>
-            public List<RegistrationLeafObject> items;
+            public List<RegistrationLeafObject>? items;
 
             /// <summary>
             ///     The lowest SemVer 2.0.0 version in the page (inclusive).
             /// </summary>
-            public string lower;
+            public string? lower;
 
             /// <summary>
             ///     The highest SemVer 2.0.0 version in the page (inclusive).
             /// </summary>
-            public string upper;
+            public string? upper;
         }
 
         [Serializable]
-        [SuppressMessage(
-            "StyleCop.CSharp.NamingRules",
-            "SA1307:Accessible fields should begin with upper-case letter",
-            Justification = "The names need to match with the JSON parameter.")]
-        [SuppressMessage(
-            "StyleCop.CSharp.MaintainabilityRules",
-            "SA1401:Fields should be private",
-            Justification = "Need to be serializable with the correct name.")]
         private class RegistrationLeafObject
         {
             /// <summary>
             ///     The URL to the registration leaf.
             /// </summary>
-            public string atId;
+            public string? atId;
 
             /// <summary>
             ///     The catalog entry containing the package metadata.
             /// </summary>
-            public CatalogEntry catalogEntry;
+            public CatalogEntry? catalogEntry;
 
             /// <summary>
             ///     The URL to the package content (.nupkg).
             /// </summary>
-            public string packageContent;
+            public string? packageContent;
+
+            public CatalogEntry CatalogEntry =>
+                catalogEntry ?? throw new InvalidOperationException($"missing '{nameof(catalogEntry)}' property in registration leaf '{atId}'.");
         }
 
         [Serializable]
-        [SuppressMessage(
-            "StyleCop.CSharp.NamingRules",
-            "SA1307:Accessible fields should begin with upper-case letter",
-            Justification = "The names need to match with the JSON parameter.")]
-        [SuppressMessage(
-            "StyleCop.CSharp.MaintainabilityRules",
-            "SA1401:Fields should be private",
-            Justification = "Need to be serializable with the correct name.")]
         private class CatalogEntry
         {
             /// <summary>
             ///     The URL to the document used to produce this object.
             /// </summary>
-            public string atId;
+            public string? atId;
 
-            public string authors;
+            public string? authors;
 
             /// <summary>
             ///     The dependencies of the package, grouped by target framework.
             /// </summary>
-            public List<DependencyGroup> dependencyGroups;
+            public List<DependencyGroup>? dependencyGroups;
 
             /// <summary>
             ///     The deprecation associated with the package.
             /// </summary>
-            public Deprecation deprecation;
+            public Deprecation? deprecation;
 
-            public string description;
+            public string? description;
 
-            public string iconUrl;
+            public string? iconUrl;
 
             /// <summary>
             ///     The ID of the package.
             /// </summary>
-            public string id;
+            public string? id;
 
-            public string language;
+            public string? language;
 
-            public string licenseExpression;
+            public string? licenseExpression;
 
-            public string licenseUrl;
+            public string? licenseUrl;
 
             /// <summary>
             ///     Should be considered as listed if absent.
             /// </summary>
             public bool listed = true;
 
-            public string minClientVersion;
+            public string? minClientVersion;
 
-            public string projectUrl;
+            public string? projectUrl;
 
             /// <summary>
             ///     A string containing a ISO 8601 time-stamp of when the package was published.
             /// </summary>
-            public string published;
+            public string? published;
 
             /// <summary>
             ///     A URL for the rendered (HTML web page) view of the package README.
             /// </summary>
-            public string readmeUrl;
+            public string? readmeUrl;
 
             public bool requireLicenseAcceptance;
 
-            public string summary;
+            public string? summary;
 
-            public string tags;
+            public string? tags;
 
-            public string title;
+            public string? title;
 
             /// <summary>
             ///     The full version string after normalization.
             /// </summary>
-            public string version;
+            public string? version;
 
             /// <summary>
             ///     The security vulnerabilities of the package.
             /// </summary>
-            public List<Vulnerability> vulnerabilities;
+            public List<Vulnerability>? vulnerabilities;
         }
 
         [Serializable]
-        [SuppressMessage(
-            "StyleCop.CSharp.NamingRules",
-            "SA1307:Accessible fields should begin with upper-case letter",
-            Justification = "The names need to match with the JSON parameter.")]
-        [SuppressMessage(
-            "StyleCop.CSharp.MaintainabilityRules",
-            "SA1401:Fields should be private",
-            Justification = "Need to be serializable with the correct name.")]
         private class DependencyGroup
         {
-            public List<Dependency> dependencies;
+            public List<Dependency>? dependencies;
 
             /// <summary>
             ///     The target framework that these dependencies are applicable to.
@@ -649,91 +652,59 @@ namespace NugetForUnity.PackageSource
         }
 
         [Serializable]
-        [SuppressMessage(
-            "StyleCop.CSharp.NamingRules",
-            "SA1307:Accessible fields should begin with upper-case letter",
-            Justification = "The names need to match with the JSON parameter.")]
-        [SuppressMessage(
-            "StyleCop.CSharp.MaintainabilityRules",
-            "SA1401:Fields should be private",
-            Justification = "Need to be serializable with the correct name.")]
         private class Dependency
         {
             /// <summary>
             ///     The ID of the package dependency.
             /// </summary>
-            public string id;
+            public string? id;
 
             /// <summary>
             ///     The allowed version range of the dependency.
             /// </summary>
-            public string range;
+            public string? range;
 
             /// <summary>
             ///     The URL to the registration index for this dependency.
             /// </summary>
-            public string registration;
+            public string? registration;
         }
 
         [Serializable]
-        [SuppressMessage(
-            "StyleCop.CSharp.NamingRules",
-            "SA1307:Accessible fields should begin with upper-case letter",
-            Justification = "The names need to match with the JSON parameter.")]
-        [SuppressMessage(
-            "StyleCop.CSharp.MaintainabilityRules",
-            "SA1401:Fields should be private",
-            Justification = "Need to be serializable with the correct name.")]
         private class Deprecation
         {
             /// <summary>
             ///     The additional details about this deprecation.
             /// </summary>
-            public string message;
+            public string? message;
 
             /// <summary>
             ///     The reasons why the package was deprecated.
             /// </summary>
-            public List<string> reasons;
+            public List<string>? reasons;
         }
 
         [Serializable]
-        [SuppressMessage(
-            "StyleCop.CSharp.NamingRules",
-            "SA1307:Accessible fields should begin with upper-case letter",
-            Justification = "The names need to match with the JSON parameter.")]
-        [SuppressMessage(
-            "StyleCop.CSharp.MaintainabilityRules",
-            "SA1401:Fields should be private",
-            Justification = "Need to be serializable with the correct name.")]
         private class Vulnerability
         {
             /// <summary>
             ///     Location of security advisory for the package.
             /// </summary>
-            public string advisoryUrl;
+            public string? advisoryUrl;
 
             /// <summary>
             ///     Severity of advisory: "0" = Low, "1" = Moderate, "2" = High, "3" = Critical.
             /// </summary>
-            public string severity;
+            public string? severity;
         }
 
         [Serializable]
-        [SuppressMessage(
-            "StyleCop.CSharp.NamingRules",
-            "SA1307:Accessible fields should begin with upper-case letter",
-            Justification = "The names need to match with the JSON parameter.")]
-        [SuppressMessage(
-            "StyleCop.CSharp.MaintainabilityRules",
-            "SA1401:Fields should be private",
-            Justification = "Need to be serializable with the correct name.")]
         private class SearchResult
         {
             /// <summary>
             ///     The search results matched by the request.
             /// </summary>
-            public List<SearchResultItem> data;
+            public List<SearchResultItem>? data;
 
             /// <summary>
             ///     The total number of matches, disregarding skip and take.
@@ -742,43 +713,35 @@ namespace NugetForUnity.PackageSource
         }
 
         [Serializable]
-        [SuppressMessage(
-            "StyleCop.CSharp.NamingRules",
-            "SA1307:Accessible fields should begin with upper-case letter",
-            Justification = "The names need to match with the JSON parameter.")]
-        [SuppressMessage(
-            "StyleCop.CSharp.MaintainabilityRules",
-            "SA1401:Fields should be private",
-            Justification = "Need to be serializable with the correct name.")]
         private class SearchResultItem
         {
-            public List<string> authors;
+            public List<string>? authors;
 
-            public string description;
+            public string? description;
 
-            public string iconUrl;
+            public string? iconUrl;
 
             /// <summary>
             ///     The ID of the matched package.
             /// </summary>
-            public string id;
+            public string? id;
 
-            public string licenseUrl;
+            public string? licenseUrl;
 
-            public List<string> owners;
+            public List<string>? owners;
 
-            public string projectUrl;
+            public string? projectUrl;
 
             /// <summary>
             ///     The absolute URL to the associated registration index.
             /// </summary>
-            public string registration;
+            public string? registration;
 
-            public string summary;
+            public string? summary;
 
-            public List<string> tags;
+            public List<string>? tags;
 
-            public string title;
+            public string? title;
 
             /// <summary>
             ///     This value can be inferred by the sum of downloads in the versions array.
@@ -793,23 +756,15 @@ namespace NugetForUnity.PackageSource
             /// <summary>
             ///     The full SemVer 2.0.0 version string of the package (could contain build metadata).
             /// </summary>
-            public string version;
+            public string? version;
 
             /// <summary>
             ///     All of the versions of the package considering the prerelease parameter.
             /// </summary>
-            public List<SearchResultVersion> versions;
+            public List<SearchResultVersion>? versions;
         }
 
         [Serializable]
-        [SuppressMessage(
-            "StyleCop.CSharp.NamingRules",
-            "SA1307:Accessible fields should begin with upper-case letter",
-            Justification = "The names need to match with the JSON parameter.")]
-        [SuppressMessage(
-            "StyleCop.CSharp.MaintainabilityRules",
-            "SA1401:Fields should be private",
-            Justification = "Need to be serializable with the correct name.")]
         private class SearchResultVersion
         {
             /// <summary>
@@ -820,7 +775,7 @@ namespace NugetForUnity.PackageSource
             /// <summary>
             ///     The full SemVer 2.0.0 version string of the package (could contain build metadata).
             /// </summary>
-            public string version;
+            public string? version;
         }
 
         // ReSharper restore InconsistentNaming
@@ -828,5 +783,8 @@ namespace NugetForUnity.PackageSource
         // ReSharper restore UnusedMember.Local
         // ReSharper restore NotAccessedField.Local
 #pragma warning restore CS0649 // Field is assigned on serialize
+#pragma warning restore CA1051 // Do not declare visible instance fields
+#pragma warning restore SA1307 // Accessible fields should begin with upper-case letter
+#pragma warning restore SA1401 // Fields should be private
     }
 }

@@ -1,6 +1,9 @@
-﻿using System;
+#nullable enable
+
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
 using NugetForUnity.Models;
@@ -112,7 +115,7 @@ namespace NugetForUnity
         /// </summary>
         /// <param name="availableTargetFrameworks">The list of available target-frameworks.</param>
         /// <returns>The best matching target-framework.</returns>
-        public static string TryGetBestTargetFramework(IReadOnlyCollection<string> availableTargetFrameworks)
+        public static string? TryGetBestTargetFramework(IReadOnlyCollection<string> availableTargetFrameworks)
         {
             return TryGetBestTargetFramework(availableTargetFrameworks, targetFramework => targetFramework);
         }
@@ -125,7 +128,7 @@ namespace NugetForUnity
         /// <param name="availableTargetFrameworks">The list of available target-frameworks.</param>
         /// <param name="getTargetFrameworkString">A function to get the target-framework string.</param>
         /// <returns>The best matching target-framework.</returns>
-        public static T TryGetBestTargetFramework<T>(IReadOnlyCollection<T> availableTargetFrameworks, Func<T, string> getTargetFrameworkString)
+        public static T? TryGetBestTargetFramework<T>(IReadOnlyCollection<T> availableTargetFrameworks, Func<T, string> getTargetFrameworkString)
         {
             var currentDotnetVersion = CurrentBuildTargetDotnetVersionCompatibilityLevel;
             var currentUnityVersion = UnityVersion.Current;
@@ -145,7 +148,7 @@ namespace NugetForUnity
                 var bestMatch = availableTargetFrameworks.FirstOrDefault(
                     availableTargetFramework =>
                     {
-                        var availableString = getTargetFrameworkString(availableTargetFramework).Replace(".", string.Empty);
+                        var availableString = getTargetFrameworkString(availableTargetFramework).Replace(".", string.Empty, StringComparison.Ordinal);
                         return availableString.Equals(targetFrameworkSupport.Name, StringComparison.OrdinalIgnoreCase);
                     });
 
@@ -163,7 +166,7 @@ namespace NugetForUnity
         /// </summary>
         /// <param name="packageDependencies">The available frameworks.</param>
         /// <returns>The selected target framework group or null if non is matching.</returns>
-        internal static NugetFrameworkGroup GetNullableBestDependencyFrameworkGroupForCurrentSettings(List<NugetFrameworkGroup> packageDependencies)
+        internal static NugetFrameworkGroup? GetNullableBestDependencyFrameworkGroupForCurrentSettings(List<NugetFrameworkGroup> packageDependencies)
         {
             var bestTargetFramework = TryGetBestTargetFramework(packageDependencies, frameworkGroup => frameworkGroup.TargetFramework);
             NugetLogger.LogVerbose(
@@ -207,7 +210,7 @@ namespace NugetForUnity
         /// </summary>
         /// <param name="targetFrameworks">The available frameworks.</param>
         /// <returns>The selected target framework or null if non is matching.</returns>
-        internal static string TryGetBestTargetFrameworkForCurrentSettings(IReadOnlyCollection<string> targetFrameworks)
+        internal static string? TryGetBestTargetFrameworkForCurrentSettings(IReadOnlyCollection<string> targetFrameworks)
         {
             var result = TryGetBestTargetFramework(targetFrameworks);
             NugetLogger.LogVerbose("Selecting {0} as the best target framework for current settings", result ?? "(null)");
@@ -235,12 +238,6 @@ namespace NugetForUnity
         // Ignore Spelling: dotnet
         private readonly struct TargetFrameworkSupport
         {
-            public readonly UnityVersion? MinimumUnityVersion;
-
-            public readonly string Name;
-
-            public readonly DotnetVersionCompatibilityLevel[] SupportedDotnetVersions;
-
             public TargetFrameworkSupport(
                 string name,
                 UnityVersion? minimumUnityVersion = null,
@@ -250,21 +247,36 @@ namespace NugetForUnity
                 MinimumUnityVersion = minimumUnityVersion;
                 SupportedDotnetVersions = supportedDotnetVersions;
             }
+
+            public UnityVersion? MinimumUnityVersion { get; }
+
+            public string Name { get; }
+
+            public DotnetVersionCompatibilityLevel[] SupportedDotnetVersions { get; }
         }
 
         private readonly struct UnityVersion : IComparable<UnityVersion>
         {
-            public readonly int Build;
+            private readonly int build;
 
-            public readonly int Major;
+            private readonly int major;
 
-            public readonly int Minor;
+            private readonly int minor;
 
-            public readonly char Release;
+            private readonly char release;
 
-            public readonly int Revision;
+            private readonly int revision;
 
-            public UnityVersion(string version)
+            public UnityVersion(int major, int minor, int revision, char release, int build)
+            {
+                this.major = major;
+                this.minor = minor;
+                this.revision = revision;
+                this.release = release;
+                this.build = build;
+            }
+
+            private UnityVersion(string version)
             {
                 var match = Regex.Match(version, @"(\d+)\.(\d+)\.(\d+)([fpba])(\d+)");
                 if (!match.Success)
@@ -272,20 +284,11 @@ namespace NugetForUnity
                     throw new ArgumentException("Invalid unity version");
                 }
 
-                Major = int.Parse(match.Groups[1].Value);
-                Minor = int.Parse(match.Groups[2].Value);
-                Revision = int.Parse(match.Groups[3].Value);
-                Release = match.Groups[4].Value[0];
-                Build = int.Parse(match.Groups[5].Value);
-            }
-
-            public UnityVersion(int major, int minor, int revision, char release, int build)
-            {
-                Major = major;
-                Minor = minor;
-                Revision = revision;
-                Release = release;
-                Build = build;
+                major = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
+                minor = int.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture);
+                revision = int.Parse(match.Groups[3].Value, CultureInfo.InvariantCulture);
+                release = match.Groups[4].Value[0];
+                build = int.Parse(match.Groups[5].Value, CultureInfo.InvariantCulture);
             }
 
             [SuppressMessage("ReSharper", "AutoPropertyCanBeMadeGetOnly.Local", Justification = "Property setter needed for unit test")]
@@ -311,64 +314,64 @@ namespace NugetForUnity
                 return left.CompareTo(right) >= 0;
             }
 
-            public static int Compare(UnityVersion a, UnityVersion b)
+            public int CompareTo(UnityVersion other)
             {
-                if (a.Major < b.Major)
+                return Compare(this, other);
+            }
+
+            private static int Compare(UnityVersion a, UnityVersion b)
+            {
+                if (a.major < b.major)
                 {
                     return -1;
                 }
 
-                if (a.Major > b.Major)
+                if (a.major > b.major)
                 {
                     return 1;
                 }
 
-                if (a.Minor < b.Minor)
+                if (a.minor < b.minor)
                 {
                     return -1;
                 }
 
-                if (a.Minor > b.Minor)
+                if (a.minor > b.minor)
                 {
                     return 1;
                 }
 
-                if (a.Revision < b.Revision)
+                if (a.revision < b.revision)
                 {
                     return -1;
                 }
 
-                if (a.Revision > b.Revision)
+                if (a.revision > b.revision)
                 {
                     return 1;
                 }
 
-                if (a.Release < b.Release)
+                if (a.release < b.release)
                 {
                     return -1;
                 }
 
-                if (a.Release > b.Release)
+                if (a.release > b.release)
                 {
                     return 1;
                 }
 
-                if (a.Build < b.Build)
+                if (a.build < b.build)
                 {
                     return -1;
                 }
 
-                if (a.Build > b.Build)
+                if (a.build > b.build)
                 {
                     return 1;
                 }
 
                 return 0;
-            }
-
-            public int CompareTo(UnityVersion other)
-            {
-                return Compare(this, other);
             }
         }
     }

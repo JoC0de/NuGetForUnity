@@ -1,4 +1,6 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -21,16 +23,12 @@ namespace NugetForUnity.Helper
         // TODO: Move to ScriptableObjet
         private static readonly List<AuthenticatedFeed> KnownAuthenticatedFeeds = new List<AuthenticatedFeed>
         {
-            new AuthenticatedFeed
-            {
-                AccountUrlPattern = @"^https:\/\/(?<account>[-a-zA-Z0-9]+)\.pkgs\.visualstudio\.com",
-                ProviderUrlTemplate = "https://{account}.pkgs.visualstudio.com/_apis/public/nuget/client/CredentialProviderBundle.zip",
-            },
-            new AuthenticatedFeed
-            {
-                AccountUrlPattern = @"^https:\/\/pkgs\.dev\.azure\.com\/(?<account>[-a-zA-Z0-9]+)\/",
-                ProviderUrlTemplate = "https://pkgs.dev.azure.com/{account}/_apis/public/nuget/client/CredentialProviderBundle.zip",
-            },
+            new AuthenticatedFeed(
+                @"^https:\/\/(?<account>[-a-zA-Z0-9]+)\.pkgs\.visualstudio\.com",
+                "https://{account}.pkgs.visualstudio.com/_apis/public/nuget/client/CredentialProviderBundle.zip"),
+            new AuthenticatedFeed(
+                @"^https:\/\/pkgs\.dev\.azure\.com\/(?<account>[-a-zA-Z0-9]+)\/",
+                "https://pkgs.dev.azure.com/{account}/_apis/public/nuget/client/CredentialProviderBundle.zip"),
         };
 
         /// <summary>
@@ -134,40 +132,46 @@ namespace NugetForUnity.Helper
             foreach (var providerPath in providerPaths.Distinct())
             {
                 // Launch the credential provider executable and get the JSON encoded response from the std output
-                var process = new Process();
-                process.StartInfo.UseShellExecute = false;
-                process.StartInfo.CreateNoWindow = true;
-                process.StartInfo.RedirectStandardOutput = true;
-                process.StartInfo.RedirectStandardError = true;
-                process.StartInfo.FileName = providerPath;
-                process.StartInfo.Arguments = $"-uri \"{feedUri}\"";
-
-                // http://stackoverflow.com/questions/16803748/how-to-decode-cmd-output-correctly
-                // Default = 65533, ASCII = ?, Unicode = nothing works at all, UTF-8 = 65533, UTF-7 = 242 = WORKS!, UTF-32 = nothing works at all
-                process.StartInfo.StandardOutputEncoding = Encoding.GetEncoding(850);
-                process.Start();
-                process.WaitForExit();
-
-                var output = process.StandardOutput.ReadToEnd();
-                var errors = process.StandardError.ReadToEnd();
-
-                switch ((CredentialProviderExitCode)process.ExitCode)
+                using (var process = new Process())
                 {
-                    case CredentialProviderExitCode.ProviderNotApplicable:
-                        break; // Not the right provider
-                    case CredentialProviderExitCode.Failure: // Right provider, failure to get credentials
-                        Debug.LogErrorFormat("Failed to get credentials from {0}!\n\tOutput\n\t{1}\n\tErrors\n\t{2}", providerPath, output, errors);
-                        return null;
+                    process.StartInfo.UseShellExecute = false;
+                    process.StartInfo.CreateNoWindow = true;
+                    process.StartInfo.RedirectStandardOutput = true;
+                    process.StartInfo.RedirectStandardError = true;
+                    process.StartInfo.FileName = providerPath;
+                    process.StartInfo.Arguments = $"-uri \"{feedUri}\"";
 
-                    case CredentialProviderExitCode.Success:
-                        return JsonUtility.FromJson<CredentialProviderResponse>(output);
-                    default:
-                        Debug.LogWarningFormat(
-                            "Unrecognized exit code {0} from {1} {2}",
-                            process.ExitCode,
-                            providerPath,
-                            process.StartInfo.Arguments);
-                        break;
+                    // http://stackoverflow.com/questions/16803748/how-to-decode-cmd-output-correctly
+                    // Default = 65533, ASCII = ?, Unicode = nothing works at all, UTF-8 = 65533, UTF-7 = 242 = WORKS!, UTF-32 = nothing works at all
+                    process.StartInfo.StandardOutputEncoding = Encoding.GetEncoding(850);
+                    process.Start();
+                    process.WaitForExit();
+
+                    var output = process.StandardOutput.ReadToEnd();
+                    var errors = process.StandardError.ReadToEnd();
+
+                    switch ((CredentialProviderExitCode)process.ExitCode)
+                    {
+                        case CredentialProviderExitCode.ProviderNotApplicable:
+                            break; // Not the right provider
+                        case CredentialProviderExitCode.Failure: // Right provider, failure to get credentials
+                            Debug.LogErrorFormat(
+                                "Failed to get credentials from {0}!\n\tOutput\n\t{1}\n\tErrors\n\t{2}",
+                                providerPath,
+                                output,
+                                errors);
+                            return null;
+
+                        case CredentialProviderExitCode.Success:
+                            return JsonUtility.FromJson<CredentialProviderResponse>(output);
+                        default:
+                            Debug.LogWarningFormat(
+                                "Unrecognized exit code {0} from {1} {2}",
+                                process.ExitCode,
+                                providerPath,
+                                process.StartInfo.Arguments);
+                            break;
+                    }
                 }
             }
 
@@ -190,7 +194,7 @@ namespace NugetForUnity.Helper
                     continue;
                 }
 
-                var providerUrl = feed.GetProviderUrl(account);
+                var providerUrl = feed.GetProviderUrl(account!);
 
 #pragma warning disable IDE0079 // Remove unnecessary suppression
 #pragma warning disable SYSLIB0014 // Type or member is obsolete
@@ -219,21 +223,39 @@ namespace NugetForUnity.Helper
                             "Nuget/CredentialProviders");
                     }
 
+                    // Normalizes the path.
+                    providerDestination = Path.GetFullPath(providerDestination);
+
+                    // Ensures that the last character on the extraction path is the directory separator char.
+                    if (!providerDestination.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal))
+                    {
+                        providerDestination += Path.DirectorySeparatorChar;
+                    }
+
                     // Unzip the bundle and extract any credential provider exes
                     using (var zip = ZipFile.OpenRead(tempFileName))
                     {
                         foreach (var entry in zip.Entries)
                         {
-                            if (Regex.IsMatch(entry.FullName, @"^credentialprovider.+\.exe$", RegexOptions.IgnoreCase))
+                            if (!Regex.IsMatch(entry.FullName, @"^credentialprovider.+\.exe$", RegexOptions.IgnoreCase))
                             {
-                                NugetLogger.LogVerbose("Extracting {0} to {1}", entry.FullName, providerDestination);
-                                var filePath = Path.Combine(providerDestination, entry.FullName);
-                                var directory = Path.GetDirectoryName(filePath);
-                                Directory.CreateDirectory(directory ?? throw new InvalidOperationException("Path has no directory name."));
-
-                                entry.ExtractToFile(filePath, true);
-                                anyDownloaded = true;
+                                continue;
                             }
+
+                            // Gets the full path to ensure that relative segments are removed.
+                            var filePath = Path.GetFullPath(Path.Combine(providerDestination, entry.FullName));
+                            if (!filePath.StartsWith(providerDestination, StringComparison.Ordinal))
+                            {
+                                // disallow leaving destination path
+                                continue;
+                            }
+
+                            NugetLogger.LogVerbose("Extracting {0} to {1}", entry.FullName, providerDestination);
+                            var directory = Path.GetDirectoryName(filePath);
+                            Directory.CreateDirectory(directory ?? throw new InvalidOperationException("Path has no directory name."));
+
+                            entry.ExtractToFile(filePath, true);
+                            anyDownloaded = true;
                         }
                     }
 
@@ -266,26 +288,28 @@ namespace NugetForUnity.Helper
             Failure = 2,
         }
 
+        [SuppressMessage("Design", "CA1051:Do not declare visible instance fields", Justification = "We use public so it can be serialized.")]
         private struct AuthenticatedFeed
         {
-            public string AccountUrlPattern;
+            public readonly string AccountUrlPattern;
 
-            public string ProviderUrlTemplate;
+            public readonly string ProviderUrlTemplate;
 
-            public string GetAccount(string url)
+            public AuthenticatedFeed(string accountUrlPattern, string providerUrlTemplate)
+            {
+                AccountUrlPattern = accountUrlPattern;
+                ProviderUrlTemplate = providerUrlTemplate;
+            }
+
+            public string? GetAccount(string url)
             {
                 var match = Regex.Match(url, AccountUrlPattern, RegexOptions.IgnoreCase);
-                if (!match.Success)
-                {
-                    return null;
-                }
-
-                return match.Groups["account"].Value;
+                return !match.Success ? null : match.Groups["account"].Value;
             }
 
             public string GetProviderUrl(string account)
             {
-                return ProviderUrlTemplate.Replace("{account}", account);
+                return ProviderUrlTemplate.Replace("{account}", account, StringComparison.Ordinal);
             }
         }
 
@@ -296,14 +320,14 @@ namespace NugetForUnity.Helper
         [Serializable]
         [SuppressMessage("ReSharper", "UnassignedField.Local", Justification = "Used by serializer.")]
         [SuppressMessage("ReSharper", "InconsistentNaming", Justification = "Need to match the serialized name.")]
+        [SuppressMessage("Design", "CA1051:Do not declare visible instance fields", Justification = "We use public so it can be serialized.")]
+        [SuppressMessage("ReSharper", "CS0649:Field is assigned on serialization", Justification = "We use public so it can be serialized.")]
         private struct CredentialProviderResponse
         {
-            // Ignore Spelling: Username
-#pragma warning disable CS0649 // Field is assigned on serialization
-            public string Username;
-
             public string Password;
-#pragma warning restore CS0649 // Field is assigned on serialization
+
+            // Ignore Spelling: Username
+            public string Username;
         }
     }
 }

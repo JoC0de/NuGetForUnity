@@ -1,4 +1,6 @@
-﻿using System;
+#nullable enable
+
+using System;
 using System.IO;
 using System.IO.Compression;
 using NugetForUnity.Configuration;
@@ -117,12 +119,12 @@ namespace NugetForUnity
             }
 
             // skip directories & files that NuGet normally deletes
-            if (path.StartsWith("_rels/", StringComparison.Ordinal) || path.Contains("/_rels/"))
+            if (path.StartsWith("_rels/", StringComparison.Ordinal) || path.Contains("/_rels/", StringComparison.Ordinal))
             {
                 return true;
             }
 
-            if (path.StartsWith("package/", StringComparison.Ordinal) || path.Contains("/package/"))
+            if (path.StartsWith("package/", StringComparison.Ordinal) || path.Contains("/package/", StringComparison.Ordinal))
             {
                 return true;
             }
@@ -138,33 +140,33 @@ namespace NugetForUnity
             }
 
             // Unity has no use for the build directory
-            if (path.StartsWith("build/", StringComparison.Ordinal) || path.Contains("/build/"))
+            if (path.StartsWith("build/", StringComparison.Ordinal) || path.Contains("/build/", StringComparison.Ordinal))
             {
                 return true;
             }
 
             // For now, skip src. We may use it later...
-            if (path.StartsWith("src/", StringComparison.Ordinal) || path.Contains("/src/"))
+            if (path.StartsWith("src/", StringComparison.Ordinal) || path.Contains("/src/", StringComparison.Ordinal))
             {
                 return true;
             }
 
             // Since we don't automatically fix up the runtime dll platforms, skip them until we improve support
             // for this newer feature of nuget packages.
-            if (path.StartsWith("runtimes/", StringComparison.Ordinal) || path.Contains("/runtimes/"))
+            if (path.StartsWith("runtimes/", StringComparison.Ordinal) || path.Contains("/runtimes/", StringComparison.Ordinal))
             {
                 return true;
             }
 
             // Skip documentation folders since they sometimes have HTML docs with JavaScript, which Unity tried to parse as "UnityScript"
-            if (path.StartsWith("docs/", StringComparison.Ordinal) || path.Contains("/docs/"))
+            if (path.StartsWith("docs/", StringComparison.Ordinal) || path.Contains("/docs/", StringComparison.Ordinal))
             {
                 return true;
             }
 
             // Skip ref folder, as it is just used for compile-time reference and does not contain implementations.
             // Leaving it results in "assembly loading" and "multiple pre-compiled assemblies with same name" errors
-            if (path.StartsWith("ref/", StringComparison.Ordinal) || path.Contains("/ref/"))
+            if (path.StartsWith("ref/", StringComparison.Ordinal) || path.Contains("/ref/", StringComparison.Ordinal))
             {
                 return true;
             }
@@ -178,7 +180,7 @@ namespace NugetForUnity
             // Skip all folders that contain localization resource file
             // Format of these entries is lib/<framework>/<language-code>/...
             const string libDirectoryName = "lib/";
-            if (path.StartsWith(libDirectoryName, StringComparison.Ordinal) || path.Contains("/lib/"))
+            if (path.StartsWith(libDirectoryName, StringComparison.Ordinal) || path.Contains("/lib/", StringComparison.Ordinal))
             {
                 var libSlashIndex = path.IndexOf(libDirectoryName, StringComparison.Ordinal) + libDirectoryName.Length;
 
@@ -211,7 +213,23 @@ namespace NugetForUnity
         /// <param name="baseDir">The path of the directory where the package output should be placed.</param>
         internal static void ExtractPackageEntry(ZipArchiveEntry entry, string baseDir)
         {
-            var filePath = Path.Combine(baseDir, entry.FullName);
+            // Normalizes the path.
+            baseDir = Path.GetFullPath(baseDir);
+
+            // Ensures that the last character on the extraction path is the directory separator char.
+            if (!baseDir.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal))
+            {
+                baseDir += Path.DirectorySeparatorChar;
+            }
+
+            // Gets the full path to ensure that relative segments are removed.
+            var filePath = Path.GetFullPath(Path.Combine(baseDir, entry.FullName));
+            if (!filePath.StartsWith(baseDir, StringComparison.Ordinal))
+            {
+                Debug.LogWarning($"Entry {entry.FullName} is trying to leave the output directory. We skip it.");
+                return;
+            }
+
             var directory = Path.GetDirectoryName(filePath) ?? throw new InvalidOperationException($"Failed to get directory name of '{filePath}'");
             Directory.CreateDirectory(directory);
             if (Directory.Exists(filePath))

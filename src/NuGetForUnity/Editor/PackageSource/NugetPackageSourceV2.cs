@@ -1,6 +1,9 @@
-﻿using System;
+#nullable enable
+
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -54,16 +57,16 @@ namespace NugetForUnity.PackageSource
 
         /// <inheritdoc />
         [field: SerializeField]
-        public string UserName { get; set; }
+        public string? UserName { get; set; }
 
         /// <inheritdoc />
         [field: SerializeField]
-        public string SavedPassword { get; set; }
+        public string? SavedPassword { get; set; }
 
         /// <summary>
         ///     Gets password, with the values of environment variables expanded.
         /// </summary>
-        public string ExpandedPassword => SavedPassword != null ? Environment.ExpandEnvironmentVariables(SavedPassword) : null;
+        public string? ExpandedPassword => SavedPassword != null ? Environment.ExpandEnvironmentVariables(SavedPassword) : null;
 
         /// <inheritdoc />
         public bool HasPassword
@@ -126,18 +129,14 @@ namespace NugetForUnity.PackageSource
                 Debug.LogErrorFormat("Unable to retrieve package list from {0}\n{1}", url, e);
             }
 
-            if (foundPackages != null)
-            {
-                // Return all the packages in the range of versions specified by 'package'.
-                foundPackages.RemoveAll(p => !package.InRange(p));
-                foundPackages.Sort();
-            }
-
+            // Return all the packages in the range of versions specified by 'package'.
+            foundPackages.RemoveAll(p => !package.InRange(p));
+            foundPackages.Sort();
             return foundPackages;
         }
 
         /// <inheritdoc />
-        public INugetPackage GetSpecificPackage(INugetPackageIdentifier package)
+        public INugetPackage? GetSpecificPackage(INugetPackageIdentifier package)
         {
             if (package.HasVersionRange)
             {
@@ -158,6 +157,7 @@ namespace NugetForUnity.PackageSource
         }
 
         /// <inheritdoc />
+        [SuppressMessage("Globalization", "CA1308:Normalize strings to uppercase", Justification = "API uses lower case.")]
         public Task<List<INugetPackage>> Search(
             string searchTerm = "",
             bool includePrerelease = false,
@@ -198,7 +198,7 @@ namespace NugetForUnity.PackageSource
             url += "targetFramework=''&";
 
             // should we include prerelease packages?
-            url += $"includePrerelease={includePrerelease.ToString().ToLower()}";
+            url += $"includePrerelease={includePrerelease.ToString().ToLowerInvariant()}";
 
             try
             {
@@ -212,6 +212,7 @@ namespace NugetForUnity.PackageSource
         }
 
         /// <inheritdoc />
+        [SuppressMessage("Globalization", "CA1308:Normalize strings to uppercase", Justification = "API uses lower case.")]
         public List<INugetPackage> GetUpdates(
             IEnumerable<INugetPackage> packages,
             bool includePrerelease = false,
@@ -251,7 +252,7 @@ namespace NugetForUnity.PackageSource
                 }
 
                 var url =
-                    $"{ExpandedPath}GetUpdates()?packageIds='{packageIds}'&versions='{versions}'&includePrerelease={includePrerelease.ToString().ToLower()}&targetFrameworks='{targetFrameworks}'&versionConstraints='{versionConstraints}'";
+                    $"{ExpandedPath}GetUpdates()?packageIds='{packageIds}'&versions='{versions}'&includePrerelease={includePrerelease.ToString().ToLowerInvariant()}&targetFrameworks='{targetFrameworks}'&versionConstraints='{versionConstraints}'";
 
                 try
                 {
@@ -288,8 +289,13 @@ namespace NugetForUnity.PackageSource
         }
 
         /// <inheritdoc />
-        public void DownloadNupkgToFile(INugetPackageIdentifier package, string outputFilePath, string downloadUrlHint)
+        public void DownloadNupkgToFile(INugetPackageIdentifier package, string outputFilePath, string? downloadUrlHint)
         {
+            if (downloadUrlHint is null)
+            {
+                throw new ArgumentNullException(nameof(downloadUrlHint));
+            }
+
             using (var objStream = WebRequestHelper.RequestUrl(downloadUrlHint, UserName, ExpandedPassword, null))
             {
                 using (var fileStream = File.Create(outputFilePath))

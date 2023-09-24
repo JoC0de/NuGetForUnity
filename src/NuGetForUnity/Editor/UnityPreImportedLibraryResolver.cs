@@ -1,4 +1,6 @@
-﻿using System.Collections.Generic;
+#nullable enable
+
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using NugetForUnity.Configuration;
@@ -13,9 +15,9 @@ namespace NugetForUnity
     /// </summary>
     internal static class UnityPreImportedLibraryResolver
     {
-        private static HashSet<string> alreadyImportedLibs;
+        private static HashSet<string>? alreadyImportedLibs;
 
-        private static HashSet<string> alreadyImportedEditorOnlyLibraries;
+        private static HashSet<string>? alreadyImportedEditorOnlyLibraries;
 
         /// <summary>
         ///     Gets all libraries that are already imported by Unity Editor so we shouldn't / don't need to install them as NuGet packages.
@@ -28,7 +30,7 @@ namespace NugetForUnity
                 GetAlreadyImportedLibs();
             }
 
-            return alreadyImportedEditorOnlyLibraries;
+            return alreadyImportedEditorOnlyLibraries!;
         }
 
         /// <summary>

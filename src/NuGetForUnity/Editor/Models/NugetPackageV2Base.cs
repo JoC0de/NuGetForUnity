@@ -1,5 +1,8 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -16,27 +19,29 @@ namespace NugetForUnity.Models
     internal abstract class NugetPackageV2Base : NugetPackageIdentifier, INugetPackage, ISerializationCallbackReceiver
     {
         [SerializeField]
-        private Texture2D icon;
+        [SuppressMessage("Usage", "CA2235:Mark all non-serializable fields", Justification = "It is a Unity object that can be serialized.")]
+        private Texture2D? icon;
 
-        private Task<Texture2D> iconTask;
+        [NonSerialized]
+        private Task<Texture2D?>? iconTask;
 
         /// <summary>
         ///     Gets or sets the URL for the location of the actual (.nupkg) NuGet package.
         /// </summary>
         [field: SerializeField]
-        public string DownloadUrl { get; set; }
+        public string? DownloadUrl { get; set; }
 
         /// <summary>
         ///     Gets or sets the URL for the location of the icon of the NuGet package.
         /// </summary>
         [field: SerializeField]
-        public string IconUrl { get; set; }
+        public string? IconUrl { get; set; }
 
         /// <summary>
         ///     Gets or sets the source control branch the package is from.
         /// </summary>
         [field: SerializeField]
-        public string RepositoryBranch { get; set; }
+        public string? RepositoryBranch { get; set; }
 
         /// <inheritdoc />
         [field: SerializeField]
@@ -47,11 +52,11 @@ namespace NugetForUnity.Models
 
         /// <inheritdoc />
         [field: SerializeField]
-        public List<string> Authors { get; set; }
+        public List<string> Authors { get; set; } = new List<string>();
 
         /// <inheritdoc />
         [field: SerializeField]
-        public string Description { get; set; }
+        public string? Description { get; set; }
 
         /// <inheritdoc />
         [field: SerializeField]
@@ -59,22 +64,22 @@ namespace NugetForUnity.Models
 
         /// <inheritdoc />
         [field: SerializeField]
-        public string LicenseUrl { get; set; }
+        public string? LicenseUrl { get; set; }
 
         /// <inheritdoc />
         public abstract INugetPackageSource PackageSource { get; }
 
         /// <inheritdoc />
         [field: SerializeField]
-        public string ProjectUrl { get; set; }
+        public string? ProjectUrl { get; set; }
 
         /// <inheritdoc />
         [field: SerializeField]
-        public string ReleaseNotes { get; set; }
+        public string? ReleaseNotes { get; set; }
 
         /// <inheritdoc />
         [field: SerializeField]
-        public string RepositoryCommit { get; set; }
+        public string? RepositoryCommit { get; set; }
 
         /// <inheritdoc />
         [field: SerializeField]
@@ -82,18 +87,18 @@ namespace NugetForUnity.Models
 
         /// <inheritdoc />
         [field: SerializeField]
-        public string RepositoryUrl { get; set; }
+        public string? RepositoryUrl { get; set; }
 
         /// <inheritdoc />
         [field: SerializeField]
-        public string Summary { get; set; }
+        public string? Summary { get; set; }
 
         /// <inheritdoc />
         [field: SerializeField]
-        public string Title { get; set; }
+        public string? Title { get; set; }
 
         /// <inheritdoc />
-        public Task<Texture2D> IconTask
+        public Task<Texture2D?>? IconTask
         {
             get
             {
@@ -104,7 +109,7 @@ namespace NugetForUnity.Models
 
                 if (!string.IsNullOrEmpty(IconUrl))
                 {
-                    iconTask = NugetPackageTextureHelper.DownloadImage(IconUrl);
+                    iconTask = NugetPackageTextureHelper.DownloadImage(IconUrl!);
                 }
 
                 return iconTask;

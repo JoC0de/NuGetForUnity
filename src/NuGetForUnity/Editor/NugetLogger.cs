@@ -1,4 +1,6 @@
-﻿using NugetForUnity.Configuration;
+#nullable enable
+
+using NugetForUnity.Configuration;
 using UnityEngine;
 #if !UNITY_2019_1_OR_NEWER
 using System.Threading;
@@ -26,7 +28,6 @@ namespace NugetForUnity
 #if UNITY_2019_1_OR_NEWER
             Debug.LogFormat(LogType.Log, LogOption.NoStacktrace, null, format, args);
 #else
-
             // application state changes need to run on main thread
             var isMainThread = !Thread.CurrentThread.IsThreadPoolThread;
             StackTraceLogType stackTraceLogType = default;

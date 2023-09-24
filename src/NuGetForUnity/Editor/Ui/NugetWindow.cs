@@ -1,6 +1,9 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -8,10 +11,7 @@ using NugetForUnity.Configuration;
 using NugetForUnity.Helper;
 using NugetForUnity.Models;
 using UnityEditor;
-using UnityEditor.PackageManager;
-using UnityEditor.PackageManager.Requests;
 using UnityEngine;
-using UnityEngine.Networking;
 using Debug = UnityEngine.Debug;
 
 namespace NugetForUnity.Ui
@@ -21,21 +21,13 @@ namespace NugetForUnity.Ui
     /// </summary>
     public class NugetWindow : EditorWindow, ISerializationCallbackReceiver
     {
-        private const string UpmPackageName = "com.github-glitchenzo.nugetforunity";
+        private static GUIStyle? cachedHeaderStyle;
 
-        private const string UpmPackageGitUrl = "https://github.com/GlitchEnzo/NuGetForUnity.git?path=/src/NuGetForUnity";
+        private static GUIStyle? cachedBackgroundStyle;
 
-        private const string GitHubReleasesPageUrl = "https://github.com/GlitchEnzo/NuGetForUnity/releases";
+        private static GUIStyle? cachedFoldoutStyle;
 
-        private const string GitHubReleasesApiUrl = "https://api.github.com/repos/GlitchEnzo/NuGetForUnity/releases?per_page=10";
-
-        private static GUIStyle cachedHeaderStyle;
-
-        private static GUIStyle cachedBackgroundStyle;
-
-        private static GUIStyle cachedFoldoutStyle;
-
-        private static GUIStyle cachedContrastStyle;
+        private static GUIStyle? cachedContrastStyle;
 
         private readonly Dictionary<string, bool> foldouts = new Dictionary<string, bool>();
 
@@ -78,9 +70,9 @@ namespace NugetForUnity.Ui
         ///     The default icon to display for packages.
         /// </summary>
         [SerializeField]
-        private Texture2D defaultIcon;
+        private Texture2D? defaultIcon;
 
-        private List<INugetPackage> filteredInstalledPackages;
+        private List<INugetPackage>? filteredInstalledPackages;
 
         /// <summary>
         ///     True when the NugetWindow has initialized. This is used to skip time-consuming reloading operations when the assembly is reloaded.
@@ -93,7 +85,7 @@ namespace NugetForUnity.Ui
         /// </summary>
         private string installedSearchTerm = "Search";
 
-        private string lastInstalledSearchTerm;
+        private string? lastInstalledSearchTerm;
 
         /// <summary>
         ///     The number of packages to skip when requesting a list of packages from the server.  This is used to get a new group of packages.
@@ -112,10 +104,10 @@ namespace NugetForUnity.Ui
         private Vector2 scrollPosition;
 
         [SerializeField]
-        private List<SerializableNugetPackage> serializableAvailablePackages;
+        private List<SerializableNugetPackage>? serializableAvailablePackages;
 
         [SerializeField]
-        private List<SerializableNugetPackage> serializableUpdatePackages;
+        private List<SerializableNugetPackage>? serializableUpdatePackages;
 
         private bool showImplicitlyInstalled;
 
@@ -152,8 +144,8 @@ namespace NugetForUnity.Ui
                 }
 
                 return updatePackages.Where(
-                        package => package.Id.IndexOf(updatesSearchTerm, StringComparison.InvariantCultureIgnoreCase) >= 0 ||
-                                   package.Title.IndexOf(updatesSearchTerm, StringComparison.InvariantCultureIgnoreCase) >= 0)
+                        package => package.Id.Contains(updatesSearchTerm, StringComparison.InvariantCultureIgnoreCase) ||
+                                   package.Title?.Contains(updatesSearchTerm, StringComparison.InvariantCultureIgnoreCase) == true)
                     .ToList();
             }
         }
@@ -175,8 +167,8 @@ namespace NugetForUnity.Ui
                 else
                 {
                     filteredInstalledPackages = InstalledPackagesManager.InstalledPackages.Where(
-                            package => package.Id.IndexOf(installedSearchTerm, StringComparison.InvariantCultureIgnoreCase) >= 0 ||
-                                       package.Title.IndexOf(installedSearchTerm, StringComparison.InvariantCultureIgnoreCase) >= 0)
+                            package => package.Id.Contains(installedSearchTerm, StringComparison.InvariantCultureIgnoreCase) ||
+                                       package.Title?.Contains(installedSearchTerm, StringComparison.InvariantCultureIgnoreCase) == true)
                         .ToList();
                 }
 
@@ -246,90 +238,6 @@ namespace NugetForUnity.Ui
         }
 
         /// <summary>
-        ///     Opens release notes for the current version.
-        /// </summary>
-        [MenuItem("NuGet/Version " + NugetPreferences.NuGetForUnityVersion + " \uD83D\uDD17", false, 10)]
-        protected static void DisplayVersion()
-        {
-            Application.OpenURL($"{GitHubReleasesPageUrl}/tag/v{NugetPreferences.NuGetForUnityVersion}");
-        }
-
-        /// <summary>
-        ///     Checks/launches the Releases page to update NuGetForUnity with a new version.
-        /// </summary>
-        [MenuItem("NuGet/Check for Updates...", false, 10)]
-        protected static void CheckForUpdates()
-        {
-            var request = UnityWebRequest.Get(GitHubReleasesApiUrl);
-            var operation = request.SendWebRequest();
-            NugetLogger.LogVerbose("HTTP GET {0}", GitHubReleasesApiUrl);
-            EditorUtility.DisplayProgressBar("Checking updates", null, 0.0f);
-
-            operation.completed += asyncOperation =>
-            {
-                try
-                {
-                    string latestVersion = null;
-                    string latestVersionDownloadUrl = null;
-                    string response = null;
-                    if (string.IsNullOrEmpty(request.error))
-                    {
-                        response = request.downloadHandler.text;
-                    }
-
-                    if (response != null)
-                    {
-                        latestVersion = GetLatestVersonFromReleasesApi(response, out latestVersionDownloadUrl);
-                    }
-
-                    EditorUtility.ClearProgressBar();
-
-                    if (latestVersion == null)
-                    {
-                        EditorUtility.DisplayDialog(
-                            "Unable to Determine Updates",
-                            $"Couldn't find release information at {GitHubReleasesApiUrl}. Error: {request.error}",
-                            "OK");
-                        return;
-                    }
-
-                    var current = new NugetPackageIdentifier("NuGetForUnity", NugetPreferences.NuGetForUnityVersion);
-                    var latest = new NugetPackageIdentifier("NuGetForUnity", latestVersion);
-                    if (current >= latest)
-                    {
-                        EditorUtility.DisplayDialog(
-                            "No Updates Available",
-                            $"Your version of NuGetForUnity is up to date.\nVersion {NugetPreferences.NuGetForUnityVersion}.",
-                            "OK");
-                        return;
-                    }
-
-                    // New version is available. Give user options for installing it.
-                    switch (EditorUtility.DisplayDialogComplex(
-                                "Update Available",
-                                $"Current Version: {NugetPreferences.NuGetForUnityVersion}\nLatest Version: {latestVersion}",
-                                "Install Latest",
-                                "Open Releases Page",
-                                "Cancel"))
-                    {
-                        case 0:
-                            _ = new NuGetForUnityUpdateInstaller(latestVersionDownloadUrl);
-                            break;
-                        case 1:
-                            Application.OpenURL(GitHubReleasesPageUrl);
-                            break;
-                        case 2:
-                            break;
-                    }
-                }
-                finally
-                {
-                    request.Dispose();
-                }
-            };
-        }
-
-        /// <summary>
         ///     Automatically called by Unity to draw the GUI.
         /// </summary>
         protected void OnGUI()
@@ -364,8 +272,8 @@ namespace NugetForUnity.Ui
 
             var underline = new string('_', url.Length);
 
-            var formattedUrl = string.Format(colorFormatString, url);
-            var formattedUnderline = string.Format(colorFormatString, underline);
+            var formattedUrl = string.Format(CultureInfo.InvariantCulture, colorFormatString, url);
+            var formattedUnderline = string.Format(CultureInfo.InvariantCulture, colorFormatString, underline);
             var urlRect = GUILayoutUtility.GetRect(new GUIContent(url), hyperLinkStyle);
 
             // Update rect for indentation
@@ -387,27 +295,6 @@ namespace NugetForUnity.Ui
                     Application.OpenURL(url);
                 }
             }
-        }
-
-        private static string GetLatestVersonFromReleasesApi(string response, out string unitypackageDownloadUrl)
-        {
-            // JsonUtility doesn't support top level arrays so we wrap it inside a object.
-            var releases = JsonUtility.FromJson<GitHubReleaseApiRequestList>(string.Concat("{ \"list\": ", response, " }"));
-            foreach (var release in releases.list)
-            {
-                // skip beta versions e.g. v2.0.0-preview
-                if (release.tag_name.Contains('-'))
-                {
-                    continue;
-                }
-
-                unitypackageDownloadUrl = release.assets.Find(asset => asset.name.EndsWith(".unitypackage", StringComparison.OrdinalIgnoreCase))
-                    ?.browser_download_url;
-                return release.tag_name.TrimStart('v');
-            }
-
-            unitypackageDownloadUrl = null;
-            return null;
         }
 
         /// <summary>
@@ -641,7 +528,7 @@ namespace NugetForUnity.Ui
             EditorGUILayout.BeginVertical();
 
             var filteredUpdatePackages = FilteredUpdatePackages;
-            if (filteredUpdatePackages != null && filteredUpdatePackages.Count > 0)
+            if (filteredUpdatePackages.Count > 0)
             {
                 DrawPackages(filteredUpdatePackages, true);
             }
@@ -715,10 +602,7 @@ namespace NugetForUnity.Ui
             scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition);
             EditorGUILayout.BeginVertical();
 
-            if (availablePackages != null)
-            {
-                DrawPackages(availablePackages);
-            }
+            DrawPackages(availablePackages);
 
             var showMoreStyle = GetHeaderStyle();
             EditorGUILayout.BeginVertical(showMoreStyle);
@@ -727,7 +611,7 @@ namespace NugetForUnity.Ui
             if (GUILayout.Button("Show More", GUILayout.Width(120)))
             {
                 numberToSkip += numberToGet;
-                availablePackages?.AddRange(
+                availablePackages.AddRange(
                     Task.Run(
                             () => ConfigurationManager.Search(
                                 onlineSearchTerm != "Search" ? onlineSearchTerm : string.Empty,
@@ -1047,7 +931,7 @@ namespace NugetForUnity.Ui
                     GUILayout.Label($"Current Version {installed.PackageVersion.FullVersion}");
                 }
 
-                if (package.Versions == null || package.Versions.Count <= 1)
+                if (package.Versions.Count <= 1)
                 {
                     GUILayout.Label($"Version {package.PackageVersion.FullVersion}");
                 }
@@ -1079,7 +963,7 @@ namespace NugetForUnity.Ui
 
                 if (installed != null)
                 {
-                    if (!installed.IsManuallyInstalled && package.PackageSource == null)
+                    if (!installed.IsManuallyInstalled)
                     {
                         if (GUILayout.Button("Add as explicit"))
                         {
@@ -1152,12 +1036,12 @@ namespace NugetForUnity.Ui
                         summary = package.Description;
                     }
 
-                    if (!package.Title.Equals(package.Id, StringComparison.InvariantCultureIgnoreCase))
+                    if (!string.IsNullOrEmpty(package.Title) && !package.Title!.Equals(package.Id, StringComparison.OrdinalIgnoreCase))
                     {
                         summary = $"{package.Title} - {summary}";
                     }
 
-                    if (summary.Length >= 240)
+                    if (summary != null && summary.Length >= 240)
                     {
                         summary = $"{summary.Substring(0, 237)}...";
                     }
@@ -1192,7 +1076,7 @@ namespace NugetForUnity.Ui
                         if (!string.IsNullOrEmpty(package.ProjectUrl))
                         {
                             EditorGUILayout.LabelField("Project Url", EditorStyles.boldLabel);
-                            GUILayoutLink(package.ProjectUrl);
+                            GUILayoutLink(package.ProjectUrl!);
                             GUILayout.Space(4f);
                         }
 
@@ -1318,6 +1202,7 @@ namespace NugetForUnity.Ui
                                 {
                                     // Create the three commands a user will need to run to get the repo @ the commit. Intentionally leave off the last newline for better UI appearance
                                     var commands = string.Format(
+                                        CultureInfo.InvariantCulture,
                                         "git clone {0} {1} --no-checkout{2}cd {1}{2}git checkout {3}",
                                         package.RepositoryUrl,
                                         package.Id,
@@ -1357,123 +1242,15 @@ namespace NugetForUnity.Ui
             EditorGUILayout.EndHorizontal();
         }
 
-        /// <summary>
-        ///     Checks if NuGetForUnity is installed using UPM.
-        ///     If installed using UPM we update the package.
-        ///     If not we open the browser to download the .unitypackage.
-        /// </summary>
-        private sealed class NuGetForUnityUpdateInstaller
-        {
-            private readonly string latestVersionDownloadUrl;
-
-            private readonly ListRequest upmPackageListRequest;
-
-            private AddRequest upmPackageAddRequest;
-
-            public NuGetForUnityUpdateInstaller(string latestVersionDownloadUrl)
-            {
-                this.latestVersionDownloadUrl = latestVersionDownloadUrl;
-                EditorUtility.DisplayProgressBar("NuGetForUnity update ...", null, 0.0f);
-
-                // get list of installed packages
-                upmPackageListRequest = Client.List(true);
-                EditorApplication.update += HandleListRequest;
-            }
-
-            private void HandleListRequest()
-            {
-                if (!upmPackageListRequest.IsCompleted)
-                {
-                    return;
-                }
-
-                try
-                {
-                    if (upmPackageListRequest.Status == StatusCode.Success &&
-                        upmPackageListRequest.Result.Any(package => package.name == UpmPackageName))
-                    {
-                        // NuGetForUnity is installed as UPM package so we can just re-add it inside the package-manager to get update (see https://docs.unity3d.com/Manual/upm-git.html)
-                        var packageInfo = upmPackageListRequest.Result.First(package => package.name == UpmPackageName);
-                        if (packageInfo.source == UnityEditor.PackageManager.PackageSource.Git)
-                        {
-                            EditorUtility.DisplayProgressBar("NuGetForUnity update ...", "Installing with UPM (git url)", 0.1f);
-                            upmPackageAddRequest = Client.Add(UpmPackageGitUrl);
-                        }
-                        else
-                        {
-                            EditorUtility.DisplayProgressBar("NuGetForUnity update ...", "Installing with UPM (OpenUPM)", 0.1f);
-                            upmPackageAddRequest = Client.Add(UpmPackageName);
-                        }
-
-                        EditorApplication.update += HandleAddRequest;
-                    }
-                    else
-                    {
-                        EditorUtility.ClearProgressBar();
-                        Application.OpenURL(latestVersionDownloadUrl);
-                    }
-                }
-                finally
-                {
-                    EditorApplication.update -= HandleListRequest;
-                }
-            }
-
-            private void HandleAddRequest()
-            {
-                if (!upmPackageAddRequest.IsCompleted)
-                {
-                    return;
-                }
-
-                EditorUtility.ClearProgressBar();
-                EditorApplication.update -= HandleAddRequest;
-            }
-        }
-
         private sealed class VersionDropdownData
         {
             public int SelectedIndex { get; set; }
 
-            public List<NugetPackageVersion> SortedVersions { get; set; }
+            public List<NugetPackageVersion> SortedVersions { get; set; } = null!;
 
             public float CalculatedMaxWith { get; set; }
 
-            public string[] DropdownOptions { get; set; }
+            public string[] DropdownOptions { get; set; } = null!;
         }
-
-        // ReSharper disable InconsistentNaming
-#pragma warning disable 0649
-#pragma warning disable SA1307 // Accessible fields should begin with upper-case letter
-#pragma warning disable SA1401 // Fields should be private
-#pragma warning disable SA1310 // Field names should not contain underscore
-
-        [Serializable]
-        private sealed class GitHubReleaseApiRequestList
-        {
-            public List<GitHubReleaseApiRequest> list;
-        }
-
-        [Serializable]
-        private sealed class GitHubReleaseApiRequest
-        {
-            public List<GitHubAsset> assets;
-
-            public string tag_name;
-        }
-
-        [Serializable]
-        private sealed class GitHubAsset
-        {
-            public string browser_download_url;
-
-            public string name;
-        }
-
-        // ReSharper restore InconsistentNaming
-#pragma warning restore SA1310 // Field names should not contain underscore
-#pragma warning restore SA1401 // Fields should be private
-#pragma warning restore SA1307 // Accessible fields should begin with upper-case letter
-#pragma warning restore 0649
     }
 }

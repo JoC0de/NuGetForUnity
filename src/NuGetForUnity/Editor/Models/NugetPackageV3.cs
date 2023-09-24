@@ -1,5 +1,8 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
 using NugetForUnity.Helper;
 using NugetForUnity.PackageSource;
@@ -14,19 +17,23 @@ namespace NugetForUnity.Models
     internal sealed class NugetPackageV3 : NugetPackageIdentifier, INugetPackage, ISerializationCallbackReceiver
     {
         [SerializeField]
-        private List<NugetFrameworkGroup> dependencies;
+        private List<NugetFrameworkGroup>? dependencies;
 
+        [SerializeField]
         private bool dependenciesFetched;
 
-        private Task<List<NugetFrameworkGroup>> dependenciesTask;
+        [NonSerialized]
+        private Task<List<NugetFrameworkGroup>>? dependenciesTask;
 
         [SerializeField]
-        private Texture2D icon;
+        [SuppressMessage("Usage", "CA2235:Mark all non-serializable fields", Justification = "It is a Unity object that can be serialized.")]
+        private Texture2D? icon;
 
-        private Task<Texture2D> iconTask;
+        [NonSerialized]
+        private Task<Texture2D?>? iconTask;
 
         [SerializeField]
-        private string iconUrl;
+        private string? iconUrl;
 
         [SerializeField]
         private NugetPackageSourceV3 packageSource;
@@ -50,14 +57,14 @@ namespace NugetForUnity.Models
             string id,
             string version,
             List<string> authors,
-            string description,
+            string? description,
             long totalDownloads,
-            string licenseUrl,
+            string? licenseUrl,
             NugetPackageSourceV3 packageSource,
-            string projectUrl,
-            string summary,
-            string title,
-            string iconUrl,
+            string? projectUrl,
+            string? summary,
+            string? title,
+            string? iconUrl,
             List<NugetPackageVersion> versions)
             : base(id, version)
         {
@@ -88,16 +95,16 @@ namespace NugetForUnity.Models
             {
                 if (dependenciesFetched)
                 {
-                    return dependencies;
+                    return dependencies!;
                 }
 
-                return Task.Run(() => GetDependenciesCoreAsync()).GetAwaiter().GetResult();
+                return Task.Run(GetDependenciesCoreAsync).GetAwaiter().GetResult();
             }
         }
 
         /// <inheritdoc />
         [field: SerializeField]
-        public string Description { get; private set; }
+        public string? Description { get; private set; }
 
         /// <inheritdoc />
         [field: SerializeField]
@@ -105,25 +112,25 @@ namespace NugetForUnity.Models
 
         /// <inheritdoc />
         [field: SerializeField]
-        public string LicenseUrl { get; private set; }
+        public string? LicenseUrl { get; private set; }
 
         /// <inheritdoc />
         public INugetPackageSource PackageSource => packageSource;
 
         /// <inheritdoc />
         [field: SerializeField]
-        public string ProjectUrl { get; private set; }
+        public string? ProjectUrl { get; private set; }
 
         /// <inheritdoc />
         [field: SerializeField]
-        public string Summary { get; private set; }
+        public string? Summary { get; private set; }
 
         /// <inheritdoc />
         [field: SerializeField]
-        public string Title { get; private set; }
+        public string? Title { get; private set; }
 
         /// <inheritdoc />
-        public Task<Texture2D> IconTask
+        public Task<Texture2D?>? IconTask
         {
             get
             {
@@ -134,7 +141,7 @@ namespace NugetForUnity.Models
 
                 if (!string.IsNullOrEmpty(iconUrl))
                 {
-                    iconTask = NugetPackageTextureHelper.DownloadImage(iconUrl);
+                    iconTask = NugetPackageTextureHelper.DownloadImage(iconUrl!);
                 }
 
                 return iconTask;
@@ -158,7 +165,7 @@ namespace NugetForUnity.Models
         {
             if (dependenciesFetched)
             {
-                return Task.FromResult(dependencies);
+                return Task.FromResult(dependencies!);
             }
 
             if (dependenciesTask != null)

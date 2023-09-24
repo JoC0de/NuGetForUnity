@@ -1,4 +1,6 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -24,7 +26,7 @@ namespace NugetForUnity.PackageSource
         /// <summary>
         ///     Gets or sets the password used to access the feed. Null indicates that no password is used.
         /// </summary>
-        string SavedPassword { get; set; }
+        string? SavedPassword { get; set; }
 
         /// <summary>
         ///     Gets or sets the path of the package source.
@@ -34,7 +36,7 @@ namespace NugetForUnity.PackageSource
         /// <summary>
         ///     Gets or sets the user-name used to access the feed. Null indicates that no authentication is used.
         /// </summary>
-        string UserName { get; set; }
+        string? UserName { get; set; }
 
         /// <summary>
         ///     Gets or sets a value indicating whether this source uses a password for authentication.
@@ -47,7 +49,7 @@ namespace NugetForUnity.PackageSource
         /// <param name="package">The package to download its .nupkg from.</param>
         /// <param name="outputFilePath">Path where the downloaded file is placed.</param>
         /// <param name="downloadUrlHint">Hint for the url used to download the .nupkg file from.</param>
-        void DownloadNupkgToFile(INugetPackageIdentifier package, string outputFilePath, string downloadUrlHint);
+        void DownloadNupkgToFile(INugetPackageIdentifier package, string outputFilePath, string? downloadUrlHint);
 
         /// <summary>
         ///     Gets a NugetPackage from the NuGet source that matches (or is in range of) the given <see cref="INugetPackageIdentifier" />.
@@ -61,7 +63,7 @@ namespace NugetForUnity.PackageSource
         /// </summary>
         /// <param name="package">The <see cref="INugetPackageIdentifier" /> containing the ID and Version of the package to get.</param>
         /// <returns>The retrieved package, if there is one.  Null if no matching package was found.</returns>
-        INugetPackage GetSpecificPackage(INugetPackageIdentifier package);
+        INugetPackage? GetSpecificPackage(INugetPackageIdentifier package);
 
         /// <summary>
         ///     Queries the source with the given list of installed packages to get any updates that are available.

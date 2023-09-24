@@ -1,4 +1,6 @@
-﻿using NugetForUnity.Models;
+#nullable enable
+
+using NugetForUnity.Models;
 
 namespace NugetForUnity.Configuration
 {

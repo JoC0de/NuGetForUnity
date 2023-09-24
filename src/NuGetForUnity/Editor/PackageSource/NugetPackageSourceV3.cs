@@ -1,4 +1,6 @@
-﻿using System;
+#nullable enable
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -17,7 +19,8 @@ namespace NugetForUnity.PackageSource
     {
         private static readonly Dictionary<string, NugetApiClientV3> ApiClientCache = new Dictionary<string, NugetApiClientV3>();
 
-        private NugetApiClientV3 apiClient;
+        [NonSerialized]
+        private NugetApiClientV3? apiClient;
 
         /// <summary>
         ///     Initializes a new instance of the <see cref="NugetPackageSourceV3" /> class.
@@ -46,7 +49,7 @@ namespace NugetForUnity.PackageSource
         /// <summary>
         ///     Gets password, with the values of environment variables expanded.
         /// </summary>
-        public string ExpandedPassword => SavedPassword != null ? Environment.ExpandEnvironmentVariables(SavedPassword) : null;
+        public string? ExpandedPassword => SavedPassword != null ? Environment.ExpandEnvironmentVariables(SavedPassword) : null;
 
         /// <inheritdoc />
         [field: SerializeField]
@@ -58,11 +61,11 @@ namespace NugetForUnity.PackageSource
 
         /// <inheritdoc />
         [field: SerializeField]
-        public string UserName { get; set; }
+        public string? UserName { get; set; }
 
         /// <inheritdoc />
         [field: SerializeField]
-        public string SavedPassword { get; set; }
+        public string? SavedPassword { get; set; }
 
         /// <inheritdoc />
         [field: SerializeField]
@@ -137,7 +140,7 @@ namespace NugetForUnity.PackageSource
         }
 
         /// <inheritdoc />
-        public INugetPackage GetSpecificPackage(INugetPackageIdentifier package)
+        public INugetPackage? GetSpecificPackage(INugetPackageIdentifier package)
         {
             return FindPackagesById(package).FirstOrDefault();
         }
@@ -164,7 +167,7 @@ namespace NugetForUnity.PackageSource
                             {
                                 if (i > 0)
                                 {
-                                    searchQueryBuilder.Append(" ");
+                                    searchQueryBuilder.Append(' ');
                                 }
 
                                 searchQueryBuilder.Append($"packageid:{packagesToFetch[i].Id}");
@@ -197,7 +200,7 @@ namespace NugetForUnity.PackageSource
         }
 
         /// <inheritdoc />
-        public void DownloadNupkgToFile(INugetPackageIdentifier package, string outputFilePath, string downloadUrlHint)
+        public void DownloadNupkgToFile(INugetPackageIdentifier package, string outputFilePath, string? downloadUrlHint)
         {
             Task.Run(() => ApiClient.DownloadNupkgToFile(this, package, outputFilePath)).GetAwaiter().GetResult();
         }

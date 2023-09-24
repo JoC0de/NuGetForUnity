@@ -1,4 +1,6 @@
-﻿using System.Collections.Generic;
+#nullable enable
+
+using System.Collections.Generic;
 using System.Linq;
 using NugetForUnity.Models;
 using UnityEditor;
@@ -28,6 +30,11 @@ namespace NugetForUnity
             NugetLogger.LogVerbose("Uninstalling: {0} {1}", package.Id, package.Version);
 
             var foundPackage = package as INugetPackage ?? PackageCacheManager.GetPackageFromCacheOrSource(package);
+
+            if (foundPackage is null)
+            {
+                return;
+            }
 
             InstalledPackagesManager.RemovePackage(foundPackage);
             PackageContentManager.DeletePackageContentPackage(foundPackage);

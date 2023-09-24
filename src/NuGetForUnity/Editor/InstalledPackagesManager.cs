@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using JetBrains.Annotations;
 using NugetForUnity.Configuration;
 using NugetForUnity.Helper;
 using NugetForUnity.Models;
@@ -19,11 +20,13 @@ namespace NugetForUnity
         /// <summary>
         ///     The dictionary of currently installed <see cref="INugetPackage" />s keyed off of their ID string.
         /// </summary>
+        [CanBeNull]
         private static Dictionary<string, INugetPackage> installedPackages;
 
         /// <summary>
         ///     Backing field for the packages.config file.
         /// </summary>
+        [CanBeNull]
         private static PackagesConfigFile packagesConfigFile;
 
         /// <summary>
@@ -33,7 +36,7 @@ namespace NugetForUnity
         {
             get
             {
-                if (packagesConfigFile == null)
+                if (packagesConfigFile is null)
                 {
                     packagesConfigFile = PackagesConfigFile.Load();
                 }
@@ -59,7 +62,7 @@ namespace NugetForUnity
                     UpdateInstalledPackages();
                 }
 
-                return installedPackages;
+                return installedPackages!;
             }
         }
 
@@ -68,6 +71,7 @@ namespace NugetForUnity
         /// </summary>
         /// <param name="packageIdentifier">The package identifier used to search the package in the packages.config (<see cref="INugetPackageIdentifier.Id" />).</param>
         /// <returns>The found configuration or <c>null</c> if there is no matching package inside the packages.config.</returns>
+        [CanBeNull]
         internal static PackageConfig GetPackageConfigurationById(string packageIdentifier)
         {
             return PackagesConfigFile.Packages.Find(pkg => string.Equals(pkg.Id, packageIdentifier, StringComparison.OrdinalIgnoreCase));
@@ -176,7 +180,9 @@ namespace NugetForUnity
             {
                 var package = NugetPackageLocal.FromNupkgFile(
                     nupkgFile,
-                    new NugetPackageSourceLocal("Nupkg file from Project", Path.GetDirectoryName(nupkgFile)));
+                    new NugetPackageSourceLocal(
+                        "Nupkg file from Project",
+                        Path.GetDirectoryName(nupkgFile) ?? throw new InvalidOperationException($"Failed to get directory from '{nupkgFile}'")));
                 AddPackageToInstalledInternal(package, ref manuallyInstalledPackagesNumber);
             }
 
@@ -186,7 +192,9 @@ namespace NugetForUnity
             {
                 var package = NugetPackageLocal.FromNuspec(
                     NuspecFile.Load(nuspecFile),
-                    new NugetPackageSourceLocal("Nuspec file from Project", Path.GetDirectoryName(nuspecFile)));
+                    new NugetPackageSourceLocal(
+                        "Nuspec file from Project",
+                        Path.GetDirectoryName(nuspecFile) ?? throw new InvalidOperationException($"Failed to get directory from '{nuspecFile}'")));
                 AddPackageToInstalledInternal(package, ref manuallyInstalledPackagesNumber);
             }
 
@@ -235,7 +243,9 @@ namespace NugetForUnity
 
                 var package = NugetPackageLocal.FromNupkgFile(
                     pkgPath,
-                    new NugetPackageSourceLocal("Nupkg file already installed", Path.GetDirectoryName(pkgPath)));
+                    new NugetPackageSourceLocal(
+                        "Nupkg file already installed",
+                        Path.GetDirectoryName(pkgPath) ?? throw new InvalidOperationException($"Failed to get directory from '{pkgPath}'")));
 
                 var installed = PackagesConfigFile.Packages.Any(packageId => packageId.Equals(package));
 
@@ -303,7 +313,8 @@ namespace NugetForUnity
 
         private static void AddPackageToInstalledInternal(INugetPackage package, ref int manuallyInstalledPackagesNumber)
         {
-            if (!installedPackages.ContainsKey(package.Id))
+            var packages = InstalledPackagesDictionary;
+            if (!packages.ContainsKey(package.Id))
             {
                 package.IsManuallyInstalled = GetPackageConfigurationById(package.Id)?.IsManuallyInstalled ?? false;
                 if (package.IsManuallyInstalled)
@@ -311,7 +322,7 @@ namespace NugetForUnity
                     manuallyInstalledPackagesNumber++;
                 }
 
-                installedPackages.Add(package.Id, package);
+                packages.Add(package.Id, package);
             }
             else
             {

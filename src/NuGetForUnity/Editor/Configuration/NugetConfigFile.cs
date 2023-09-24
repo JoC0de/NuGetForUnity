@@ -1,5 +1,9 @@
-﻿using System;
+#nullable enable
+
+using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Xml;
@@ -35,7 +39,7 @@ namespace NugetForUnity.Configuration
         /// <summary>
         ///     The incomplete path that is saved.  The path is expanded and made public via the property above.
         /// </summary>
-        private string savedRepositoryPath;
+        private string? savedRepositoryPath;
 
         /// <summary>
         ///     Gets the list of package sources that are defined in the NuGet.config file.
@@ -44,23 +48,23 @@ namespace NugetForUnity.Configuration
         ///     The NuGet server protocol version defaults to version "2" when not pointing to a package source URL ending in .json (e.g.
         ///     https://api.nuget.org/v3/index.json).
         /// </remarks>
-        public List<INugetPackageSource> PackageSources { get; private set; }
+        public List<INugetPackageSource> PackageSources { get; } = new List<INugetPackageSource>();
 
         /// <summary>
         ///     Gets the currently active package source that is defined in the NuGet.config file.
         ///     Note: If the key/Name is set to "All" and the value/Path is set to "(Aggregate source)", all package sources are used.
         /// </summary>
-        public INugetPackageSource ActivePackageSource { get; private set; }
+        public INugetPackageSource? ActivePackageSource { get; private set; }
 
         /// <summary>
         ///     Gets the local path where packages are to be installed.  It can be a full path or a relative path.
         /// </summary>
-        public string RepositoryPath { get; private set; }
+        public string RepositoryPath { get; private set; } = Path.GetFullPath(Path.Combine(Application.dataPath, "Packages"));
 
         /// <summary>
         ///     Gets the default package source to push NuGet packages to.
         /// </summary>
-        public string DefaultPushSource { get; private set; }
+        public string? DefaultPushSource { get; private set; }
 
         /// <summary>
         ///     Gets or sets a value indicating whether to output verbose log messages to the console. False to output the normal level of messages.
@@ -81,7 +85,7 @@ namespace NugetForUnity.Configuration
         /// <summary>
         ///     Gets or sets absolute path to directory containing packages.config file.
         /// </summary>
-        public string PackagesConfigDirectoryPath { get; set; }
+        public string PackagesConfigDirectoryPath { get; set; } = Application.dataPath;
 
         /// <summary>
         ///     Gets the relative path to directory containing packages.config file. The path is relative to the folder containing the 'NuGet.config' file.
@@ -117,10 +121,7 @@ namespace NugetForUnity.Configuration
         {
             var configFile = new NugetConfigFile
             {
-                PackageSources = new List<INugetPackageSource>(),
-                InstallFromCache = true,
-                ReadOnlyPackageFiles = false,
-                RelativePackagesConfigDirectoryPath = ".",
+                InstallFromCache = true, ReadOnlyPackageFiles = false, RelativePackagesConfigDirectoryPath = ".",
             };
 
             var file = XDocument.Load(filePath);
@@ -133,7 +134,12 @@ namespace NugetForUnity.Configuration
                 foreach (var add in adds)
                 {
                     configFile.PackageSources.Add(
-                        NugetPackageSourceCreator.CreatePackageSource(add.Attribute("key")?.Value, add.Attribute("value")?.Value, null));
+                        NugetPackageSourceCreator.CreatePackageSource(
+                            add.Attribute("key")?.Value ??
+                            throw new InvalidOperationException($"packageSources misses 'key' attribute. Element:\n{add}"),
+                            add.Attribute("value")?.Value ??
+                            throw new InvalidOperationException($"packageSources misses 'value' attribute. Element:\n{add}"),
+                            null));
                 }
             }
 
@@ -143,8 +149,10 @@ namespace NugetForUnity.Configuration
             {
                 var add = activePackageSource.Element("add");
                 configFile.ActivePackageSource = NugetPackageSourceCreator.CreatePackageSource(
-                    add?.Attribute("key")?.Value,
-                    add?.Attribute("value")?.Value,
+                    add?.Attribute("key")?.Value ??
+                    throw new InvalidOperationException($"activePackageSource misses 'key' attribute. Element:\n{add}"),
+                    add.Attribute("value")?.Value ??
+                    throw new InvalidOperationException($"activePackageSource misses 'value' attribute. Element:\n{add}"),
                     configFile.PackageSources);
             }
 
@@ -207,8 +215,8 @@ namespace NugetForUnity.Configuration
             var addElements = config.Elements("add");
             foreach (var add in addElements)
             {
-                var key = add.Attribute("key").Value;
-                var value = add.Attribute("value").Value;
+                var key = add.Attribute("key")?.Value;
+                var value = add.Attribute("value")?.Value ?? throw new InvalidOperationException($"config misses 'value' attribute. Element:\n{add}");
 
                 if (string.Equals(key, "repositoryPath", StringComparison.OrdinalIgnoreCase))
                 {
@@ -241,7 +249,7 @@ namespace NugetForUnity.Configuration
                 }
                 else if (string.Equals(key, RequestTimeoutSecondsConfigKey, StringComparison.OrdinalIgnoreCase))
                 {
-                    configFile.RequestTimeoutSeconds = int.Parse(value);
+                    configFile.RequestTimeoutSeconds = int.Parse(value, CultureInfo.InvariantCulture);
                 }
                 else if (string.Equals(key, LockPackagesOnRestoreConfigKey, StringComparison.OrdinalIgnoreCase))
                 {
@@ -288,6 +296,7 @@ namespace NugetForUnity.Configuration
         ///     Saves this NuGet.config file to disk.
         /// </summary>
         /// <param name="filePath">The file-path to where this NuGet.config will be saved.</param>
+        [SuppressMessage("Globalization", "CA1308:Normalize strings to uppercase", Justification = "We intentionally use lower case.")]
         public void Save(string filePath)
         {
             var configFile = new XDocument();
@@ -326,7 +335,7 @@ namespace NugetForUnity.Configuration
 
                     addElement = new XElement("add");
                     addElement.Add(new XAttribute("key", "clearTextPassword"));
-                    addElement.Add(new XAttribute("value", source.SavedPassword));
+                    addElement.Add(new XAttribute("value", source.SavedPassword ?? string.Empty));
                     sourceElement.Add(addElement);
                 }
             }
@@ -340,11 +349,14 @@ namespace NugetForUnity.Configuration
 
             var config = new XElement("config");
 
-            // save the un-expanded respository path
-            addElement = new XElement("add");
-            addElement.Add(new XAttribute("key", "repositoryPath"));
-            addElement.Add(new XAttribute("value", savedRepositoryPath));
-            config.Add(addElement);
+            if (!string.IsNullOrEmpty(savedRepositoryPath))
+            {
+                // save the un-expanded repository path
+                addElement = new XElement("add");
+                addElement.Add(new XAttribute("key", "repositoryPath"));
+                addElement.Add(new XAttribute("value", savedRepositoryPath!));
+                config.Add(addElement);
+            }
 
             addElement = new XElement("add");
             addElement.Add(new XAttribute("key", PackagesConfigDirectoryPathConfigKey));
@@ -364,7 +376,7 @@ namespace NugetForUnity.Configuration
             {
                 addElement = new XElement("add");
                 addElement.Add(new XAttribute("key", "verbose"));
-                addElement.Add(new XAttribute("value", Verbose.ToString().ToLower()));
+                addElement.Add(new XAttribute("value", Verbose.ToString().ToLowerInvariant()));
                 config.Add(addElement);
             }
 
@@ -372,7 +384,7 @@ namespace NugetForUnity.Configuration
             {
                 addElement = new XElement("add");
                 addElement.Add(new XAttribute("key", "InstallFromCache"));
-                addElement.Add(new XAttribute("value", InstallFromCache.ToString().ToLower()));
+                addElement.Add(new XAttribute("value", InstallFromCache.ToString().ToLowerInvariant()));
                 config.Add(addElement);
             }
 
@@ -380,7 +392,7 @@ namespace NugetForUnity.Configuration
             {
                 addElement = new XElement("add");
                 addElement.Add(new XAttribute("key", "ReadOnlyPackageFiles"));
-                addElement.Add(new XAttribute("value", ReadOnlyPackageFiles.ToString().ToLower()));
+                addElement.Add(new XAttribute("value", ReadOnlyPackageFiles.ToString().ToLowerInvariant()));
                 config.Add(addElement);
             }
 
@@ -396,7 +408,7 @@ namespace NugetForUnity.Configuration
             {
                 addElement = new XElement("add");
                 addElement.Add(new XAttribute("key", LockPackagesOnRestoreConfigKey));
-                addElement.Add(new XAttribute("value", LockPackagesOnRestore.ToString().ToLower()));
+                addElement.Add(new XAttribute("value", LockPackagesOnRestore.ToString().ToLowerInvariant()));
                 config.Add(addElement);
             }
 

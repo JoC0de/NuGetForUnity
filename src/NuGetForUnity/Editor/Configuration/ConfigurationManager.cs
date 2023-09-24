@@ -1,4 +1,6 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.CompilerServices;
@@ -21,12 +23,12 @@ namespace NugetForUnity.Configuration
         /// <summary>
         ///     The <see cref="INugetPackageSource" /> to use.
         /// </summary>
-        private static INugetPackageSource activePackageSource;
+        private static INugetPackageSource? activePackageSource;
 
         /// <summary>
         ///     Backing field for the NuGet.config file.
         /// </summary>
-        private static NugetConfigFile nugetConfigFile;
+        private static NugetConfigFile? nugetConfigFile;
 
         static ConfigurationManager()
         {
@@ -54,7 +56,7 @@ namespace NugetForUnity.Configuration
                     LoadNugetConfigFile();
                 }
 
-                return nugetConfigFile;
+                return nugetConfigFile!;
             }
         }
 
@@ -69,6 +71,22 @@ namespace NugetForUnity.Configuration
         ///     But this will not load the NuGet.config file to prevent endless loops wen we log while we load the <c>NuGet.config</c> file.
         /// </summary>
         internal static bool IsVerboseLoggingEnabled => nugetConfigFile?.Verbose ?? false;
+
+        /// <summary>
+        ///     Gets the <see cref="INugetPackageSource" /> to use.
+        /// </summary>
+        private static INugetPackageSource ActivePackageSource
+        {
+            get
+            {
+                if (activePackageSource is null)
+                {
+                    LoadNugetConfigFile();
+                }
+
+                return activePackageSource!;
+            }
+        }
 
         /// <summary>
         ///     Loads the NuGet.config file.
@@ -93,7 +111,7 @@ namespace NugetForUnity.Configuration
             {
                 if (readingSources)
                 {
-                    if (arg.StartsWith("-"))
+                    if (arg.StartsWith('-'))
                     {
                         readingSources = false;
                     }
@@ -145,7 +163,7 @@ namespace NugetForUnity.Configuration
             int numberToSkip = 0,
             CancellationToken cancellationToken = default)
         {
-            return activePackageSource.Search(searchTerm, includePrerelease, numberToGet, numberToSkip, cancellationToken);
+            return ActivePackageSource.Search(searchTerm, includePrerelease, numberToGet, numberToSkip, cancellationToken);
         }
 
         /// <summary>
@@ -162,13 +180,13 @@ namespace NugetForUnity.Configuration
             string targetFrameworks = "",
             string versionConstraints = "")
         {
-            return activePackageSource.GetUpdates(packagesToUpdate, includePrerelease, targetFrameworks, versionConstraints);
+            return ActivePackageSource.GetUpdates(packagesToUpdate, includePrerelease, targetFrameworks, versionConstraints);
         }
 
         /// <inheritdoc cref="INugetPackageSource.GetSpecificPackage(INugetPackageIdentifier)" />
-        public static INugetPackage GetSpecificPackage(INugetPackageIdentifier nugetPackageIdentifier)
+        public static INugetPackage? GetSpecificPackage(INugetPackageIdentifier nugetPackageIdentifier)
         {
-            return activePackageSource.GetSpecificPackage(nugetPackageIdentifier);
+            return ActivePackageSource.GetSpecificPackage(nugetPackageIdentifier);
         }
     }
 }

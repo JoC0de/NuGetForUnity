@@ -1,4 +1,6 @@
-﻿using System;
+#nullable enable
+
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -41,9 +43,9 @@ namespace NugetForUnity.PackageSource
         public bool IsEnabled { get; set; }
 
         /// <inheritdoc />
-        public string UserName
+        public string? UserName
         {
-            get => string.Empty;
+            get => null;
 
             set
             {
@@ -52,9 +54,9 @@ namespace NugetForUnity.PackageSource
         }
 
         /// <inheritdoc />
-        public string SavedPassword
+        public string? SavedPassword
         {
-            get => string.Empty;
+            get => null;
 
             set
             {
@@ -115,18 +117,14 @@ namespace NugetForUnity.PackageSource
                 foundPackages = GetLocalPackages($"{package.Id}*", true, true);
             }
 
-            if (foundPackages != null)
-            {
-                // Return all the packages in the range of versions specified by 'package'.
-                foundPackages.RemoveAll(p => !package.InRange(p));
-                foundPackages.Sort();
-            }
-
+            // Return all the packages in the range of versions specified by 'package'.
+            foundPackages.RemoveAll(p => !package.InRange(p));
+            foundPackages.Sort();
             return foundPackages;
         }
 
         /// <inheritdoc />
-        public INugetPackage GetSpecificPackage(INugetPackageIdentifier package)
+        public INugetPackage? GetSpecificPackage(INugetPackageIdentifier package)
         {
             // if multiple match we use the lowest version
             return FindPackagesById(package).FirstOrDefault();
@@ -154,7 +152,7 @@ namespace NugetForUnity.PackageSource
         }
 
         /// <inheritdoc />
-        public void DownloadNupkgToFile(INugetPackageIdentifier package, string outputFilePath, string downloadUrlHint)
+        public void DownloadNupkgToFile(INugetPackageIdentifier package, string outputFilePath, string? downloadUrlHint)
         {
             if (string.IsNullOrEmpty(downloadUrlHint))
             {
@@ -220,15 +218,15 @@ namespace NugetForUnity.PackageSource
             var path = ExpandedPath;
             if (Directory.Exists(path))
             {
-                var packagePaths = Directory.GetFiles(path, $"{searchTerm}.nupkg");
+                var packagePaths = Directory.EnumerateFiles(path, $"{searchTerm}.nupkg");
 
                 // Hierarchical folder structures are supported in NuGet 3.3+.
                 // └─<packageID>
                 //   └─<version>
                 //     └─<packageID>.<version>.nupkg
-                var packagesFromFolders = Directory.GetDirectories(path, searchTerm)
-                    .SelectMany(nameFolder => Directory.GetDirectories(nameFolder))
-                    .SelectMany(versionFolder => Directory.GetFiles(versionFolder, "*.nupkg"));
+                var packagesFromFolders = Directory.EnumerateDirectories(path, searchTerm)
+                    .SelectMany(Directory.EnumerateDirectories)
+                    .SelectMany(versionFolder => Directory.EnumerateFiles(versionFolder, "*.nupkg"));
                 foreach (var packagePath in packagePaths.Concat(packagesFromFolders))
                 {
                     var package = NugetPackageLocal.FromNupkgFile(packagePath, this);

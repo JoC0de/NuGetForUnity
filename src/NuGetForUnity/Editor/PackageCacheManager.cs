@@ -1,4 +1,6 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
 using System.IO;
 using NugetForUnity.Configuration;
 using NugetForUnity.Models;
@@ -34,7 +36,7 @@ namespace NugetForUnity
         /// </summary>
         /// <param name="packageId">The <see cref="INugetPackageIdentifier" /> containing the ID and Version of the package to get.</param>
         /// <returns>The retrieved package, if there is one. Null if no matching package was found.</returns>
-        internal static INugetPackage GetPackageFromCacheOrSource(INugetPackageIdentifier packageId)
+        internal static INugetPackage? GetPackageFromCacheOrSource(INugetPackageIdentifier packageId)
         {
             // First look to see if the package is already installed
             var package = GetInstalledPackage(packageId);
@@ -61,7 +63,7 @@ namespace NugetForUnity
         /// </summary>
         /// <param name="packageId">The <see cref="INugetPackageIdentifier" /> of the <see cref="NugetPackageLocal" /> to find.</param>
         /// <returns>The best <see cref="NugetPackageLocal" /> match, if there is one, otherwise null.</returns>
-        private static NugetPackageLocal GetCachedPackage(INugetPackageIdentifier packageId)
+        private static NugetPackageLocal? GetCachedPackage(INugetPackageIdentifier packageId)
         {
             if (!ConfigurationManager.NugetConfigFile.InstallFromCache || packageId.HasVersionRange)
             {
@@ -78,7 +80,10 @@ namespace NugetForUnity
             NugetLogger.LogVerbose("Found exact package in the cache: {0}", cachedPackagePath);
             return NugetPackageLocal.FromNupkgFile(
                 cachedPackagePath,
-                new NugetPackageSourceLocal("Nupkg file from cache", Path.GetDirectoryName(cachedPackagePath)));
+                new NugetPackageSourceLocal(
+                    "Nupkg file from cache",
+                    Path.GetDirectoryName(cachedPackagePath) ??
+                    throw new InvalidOperationException($"Failed to get directory from '{cachedPackagePath}'")));
         }
 
         /// <summary>
@@ -86,7 +91,7 @@ namespace NugetForUnity
         /// </summary>
         /// <param name="packageId">The <see cref="INugetPackageIdentifier" /> of the <see cref="INugetPackage" /> to find.</param>
         /// <returns>The best <see cref="INugetPackage" /> match, if there is one, otherwise null.</returns>
-        private static INugetPackage GetOnlinePackage(INugetPackageIdentifier packageId)
+        private static INugetPackage? GetOnlinePackage(INugetPackageIdentifier packageId)
         {
             var package = ConfigurationManager.GetSpecificPackage(packageId);
 
@@ -107,7 +112,7 @@ namespace NugetForUnity
         /// </summary>
         /// <param name="packageId">The <see cref="INugetPackageIdentifier" /> of the <see cref="INugetPackage" /> to find.</param>
         /// <returns>The best <see cref="INugetPackage" /> match, if there is one, otherwise null.</returns>
-        private static INugetPackage GetInstalledPackage(INugetPackageIdentifier packageId)
+        private static INugetPackage? GetInstalledPackage(INugetPackageIdentifier packageId)
         {
             if (!InstalledPackagesManager.TryGetById(packageId.Id, out var installedPackage))
             {

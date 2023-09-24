@@ -1,5 +1,8 @@
-﻿using System;
+#nullable enable
+
+using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -279,7 +282,7 @@ namespace NugetForUnity
         /// <param name="assetFilePath">Path to the assets.</param>
         /// <param name="plugin">The loaded PluginImporter.</param>
         /// <returns>True if the plug-in importer for the asset could be loaded.</returns>
-        private static bool GetPluginImporter(string assetFilePath, out PluginImporter plugin)
+        private static bool GetPluginImporter(string assetFilePath, [NotNullWhen(true)] out PluginImporter? plugin)
         {
             var assetPath = assetFilePath;
             plugin = AssetImporter.GetAtPath(assetPath) as PluginImporter;
